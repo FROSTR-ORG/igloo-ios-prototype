@@ -83,8 +83,17 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.node = node;
       this.groupCredential = groupCredential;
       this.shareCredential = shareCredential;
-      // Track only actually connected relays
-      this.currentRelays = state.connectedRelays.length > 0 ? state.connectedRelays : relays;
+      this.currentRelays = state.connectedRelays;
+
+      // Fail fast if no relays connected
+      if (this.currentRelays.length === 0) {
+        cleanupBifrostNode(this.node);
+        this.node = null;
+        this.groupCredential = null;
+        this.shareCredential = null;
+        this.emit('status:changed', 'error');
+        throw new Error('Failed to connect to any relays');
+      }
 
       this.setupNodeEventListeners();
 
