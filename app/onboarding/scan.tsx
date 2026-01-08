@@ -308,8 +308,7 @@ export default function OnboardingScan() {
         </View>
 
         <Pressable
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onPress={() => router.push('/onboarding/manual' as any)}
+          onPress={() => router.push('/onboarding/manual')}
           className="mt-6 py-2"
         >
           <Text className="text-frost-400 text-center">

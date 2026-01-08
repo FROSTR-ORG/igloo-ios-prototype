@@ -212,8 +212,7 @@ export default function OnboardingManual() {
 
           {/* Scan Link */}
           <Pressable
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onPress={() => router.push('/onboarding/scan' as any)}
+            onPress={() => router.push('/onboarding/scan')}
             className="mt-4 py-2"
           >
             <Text className="text-frost-600 dark:text-frost-400 text-center">

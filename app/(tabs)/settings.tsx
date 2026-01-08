@@ -96,8 +96,7 @@ export default function SettingsTab() {
               await stop();
               await deleteCredentials();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              router.replace('/onboarding' as any);
+              router.replace('/onboarding');
             } catch (error) {
               Alert.alert(
                 'Error',

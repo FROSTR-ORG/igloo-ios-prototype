@@ -111,8 +111,7 @@ function RootLayoutNav() {
 
     // Navigate to appropriate screen based on credential state
     if (!hasCredentials) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.replace('/onboarding' as any);
+      router.replace('/onboarding');
     }
   }, [isReady, isHydrated, hasCredentials]);
 
