@@ -11,17 +11,7 @@
  */
 
 // MUST be first - set up crypto polyfill before anything else loads
-const { getRandomValues } = require('expo-crypto');
-
-// Polyfill crypto.getRandomValues on all global objects
-function polyfillCrypto(target) {
-  if (!target) return;
-  if (!target.crypto) {
-    target.crypto = {};
-  }
-  // Always override - RN may have incomplete crypto object
-  target.crypto.getRandomValues = getRandomValues;
-}
+const { polyfillCrypto } = require('./polyfills/crypto');
 
 // Apply to all possible global scopes
 polyfillCrypto(global);

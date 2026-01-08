@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, Alert, Pressable, StyleSheet, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -29,10 +29,19 @@ export default function OnboardingScan() {
   const transitionOpacity = useRef(new Animated.Value(0)).current;
   const transitionScale = useRef(new Animated.Value(0.8)).current;
 
+  // Refs to track timeouts for cleanup
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Show error with auto-dismiss
   const showError = useCallback((message: string) => {
     setErrorMessage(message);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+    // Clear any existing timeout
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
 
     // Fade in
     Animated.timing(errorOpacity, {
@@ -42,7 +51,7 @@ export default function OnboardingScan() {
     }).start();
 
     // Auto dismiss after 2.5 seconds
-    setTimeout(() => {
+    errorTimeoutRef.current = setTimeout(() => {
       Animated.timing(errorOpacity, {
         toValue: 0,
         duration: 300,
@@ -54,6 +63,11 @@ export default function OnboardingScan() {
   // Show transition overlay then move to share step
   const showTransition = useCallback(() => {
     setScanStep('transition');
+
+    // Clear any existing timeout
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+    }
 
     // Animate in
     Animated.parallel([
@@ -71,7 +85,7 @@ export default function OnboardingScan() {
     ]).start();
 
     // After delay, fade out and move to share step
-    setTimeout(() => {
+    transitionTimeoutRef.current = setTimeout(() => {
       Animated.timing(transitionOpacity, {
         toValue: 0,
         duration: 300,
@@ -82,6 +96,18 @@ export default function OnboardingScan() {
       });
     }, 1500);
   }, [transitionOpacity, transitionScale]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleBarCodeScanned = useCallback(async ({ data }: { data: string }) => {
     if (isProcessing || scanStep === 'transition') return;

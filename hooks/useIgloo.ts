@@ -8,54 +8,50 @@ import type { SignerStatus, PeerStatus, LogEntry, SigningRequest } from '@/types
  * Sets up event listeners and provides methods to control the signer.
  */
 export function useIgloo() {
-  const setStatus = useSignerStore((s) => s.setStatus);
-  const setConnectedRelays = useSignerStore((s) => s.setConnectedRelays);
-  const setError = useSignerStore((s) => s.setError);
-  const addSigningRequest = useSignerStore((s) => s.addSigningRequest);
-  const updateSigningRequest = useSignerStore((s) => s.updateSigningRequest);
-  const addLogEntry = useLogStore((s) => s.addEntry);
-  const updatePeerStatus = usePeerStore((s) => s.updatePeerStatus);
-
-  // Set up event listeners
+  // Set up event listeners once on mount.
+  // Uses empty dependency array because:
+  // - iglooService is a singleton (stable reference)
+  // - Zustand store selectors are stable references
+  // This prevents duplicate listener registration from effect re-runs.
   useEffect(() => {
     const handleStatusChange = (status: SignerStatus) => {
-      setStatus(status);
+      useSignerStore.getState().setStatus(status);
     };
 
-    const handleRelayConnected = (relay: string) => {
-      setConnectedRelays([...iglooService.getConnectedRelays()]);
+    const handleRelayConnected = () => {
+      useSignerStore.getState().setConnectedRelays([...iglooService.getConnectedRelays()]);
     };
 
-    const handleRelayDisconnected = (relay: string) => {
-      setConnectedRelays([...iglooService.getConnectedRelays()]);
+    const handleRelayDisconnected = () => {
+      useSignerStore.getState().setConnectedRelays([...iglooService.getConnectedRelays()]);
     };
 
     const handleSigningRequest = (request: SigningRequest) => {
-      addSigningRequest(request);
+      useSignerStore.getState().addSigningRequest(request);
     };
 
     const handleSigningComplete = (result: { requestId: string; success: boolean }) => {
-      updateSigningRequest(result.requestId, {
+      useSignerStore.getState().updateSigningRequest(result.requestId, {
         status: result.success ? 'completed' : 'failed',
       });
     };
 
     const handleSigningError = (error: Error, requestId?: string) => {
       if (requestId) {
-        updateSigningRequest(requestId, { status: 'failed' });
+        useSignerStore.getState().updateSigningRequest(requestId, { status: 'failed' });
       }
     };
 
     const handlePeerStatus = (pubkey: string, status: PeerStatus, latency?: number) => {
-      updatePeerStatus(pubkey, status, latency);
+      usePeerStore.getState().updatePeerStatus(pubkey, status, latency);
     };
 
     const handleLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
-      addLogEntry(entry);
+      useLogStore.getState().addEntry(entry);
     };
 
     const handleError = (error: Error) => {
-      setError(error.message);
+      useSignerStore.getState().setError(error.message);
     };
 
     // Subscribe to events
@@ -81,15 +77,8 @@ export function useIgloo() {
       iglooService.off('log', handleLog);
       iglooService.off('error', handleError);
     };
-  }, [
-    setStatus,
-    setConnectedRelays,
-    setError,
-    addSigningRequest,
-    updateSigningRequest,
-    addLogEntry,
-    updatePeerStatus,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Expose service methods
   const startSigner = useCallback(

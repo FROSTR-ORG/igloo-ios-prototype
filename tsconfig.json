@@ -5,7 +5,12 @@
     "module": "esnext",
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "plugins": [
+      {
+        "name": "expo-router/typed-routes"
+      }
+    ]
   },
   "include": [
     "**/*.ts",

@@ -13,7 +13,7 @@ import pkg from '../../package.json';
 const IGLOO_CORE_VERSION = pkg.dependencies['@frostr/igloo-core']?.replace(/^[\^~]/, '') ?? 'unknown';
 
 export default function SettingsTab() {
-  const { isRunning, stop } = useSigner();
+  const { stop } = useSigner();
   const { shareDetails, deleteCredentials } = useCredentials();
   const relays = useRelayStore((s) => s.relays);
   const addRelay = useRelayStore((s) => s.addRelay);
@@ -93,10 +93,7 @@ export default function SettingsTab() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Stop signer if running
-              if (isRunning) {
-                await stop();
-              }
+              await stop();
               await deleteCredentials();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,7 +108,7 @@ export default function SettingsTab() {
         },
       ]
     );
-  }, [isRunning, stop, deleteCredentials]);
+  }, [stop, deleteCredentials]);
 
   const handleCopyGroupPubkey = useCallback(async () => {
     if (shareDetails?.groupPubkey) {

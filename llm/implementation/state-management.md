@@ -11,7 +11,7 @@ The app uses **Zustand** for state management with a layered storage strategy:
 
 ## Storage Strategy Diagram
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                    Zustand Stores                            │
 ├──────────────────────────────────────────────────────────────┤
@@ -267,7 +267,6 @@ interface RelayStoreState {
 **Default Relays:**
 ```typescript
 export const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
   'wss://relay.primal.net',
 ] as const;
 ```

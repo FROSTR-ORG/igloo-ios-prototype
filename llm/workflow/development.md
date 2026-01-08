@@ -423,7 +423,7 @@ require('expo-router/entry');
 **IMPORTANT**: Do NOT change the entry point back to `expo-router/entry` or the crypto polyfill will fail to apply in time.
 
 Without this polyfill, operations will fail with:
-```
+```text
 crypto.getRandomValues must be defined
 ```
 

@@ -54,16 +54,14 @@ export default function OnboardingWelcome() {
             title="Scan QR Code"
             size="lg"
             icon={<FontAwesome name="qrcode" size={20} color="white" />}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onPress={() => router.push('/onboarding/scan' as any)}
+            onPress={() => router.push('/onboarding/scan')}
           />
           <Button
             title="Enter Manually"
             variant="secondary"
             size="lg"
             icon={<FontAwesome name="keyboard-o" size={20} color="#374151" />}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onPress={() => router.push('/onboarding/manual' as any)}
+            onPress={() => router.push('/onboarding/manual')}
           />
         </View>
       </View>

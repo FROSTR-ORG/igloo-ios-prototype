@@ -41,6 +41,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   private currentRelays: string[] = [];
   // Track pending signing requests for correlation with completion events
   private pendingRequests: Map<string, SigningRequest> = new Map();
+  // Track registered node event handlers for cleanup
+  private nodeEventHandlers: Array<{ event: string; handler: (...args: unknown[]) => void }> = [];
 
   /**
    * Start the signer node and connect to relays.
@@ -123,6 +125,9 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     try {
       // Emit disconnection events for current relays
       this.currentRelays.forEach((relay) => this.emit('relay:disconnected', relay));
+
+      // Clean up node event listeners before destroying the node
+      this.cleanupNodeEventListeners();
 
       cleanupBifrostNode(this.node);
 
@@ -499,10 +504,29 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   }
 
   /**
+   * Clean up previously registered node event listeners.
+   */
+  private cleanupNodeEventListeners(): void {
+    if (!this.node || this.nodeEventHandlers.length === 0) return;
+
+    const node = this.node as unknown as {
+      off: (event: string, handler: (...args: unknown[]) => void) => void;
+    };
+
+    for (const { event, handler } of this.nodeEventHandlers) {
+      node.off(event, handler);
+    }
+    this.nodeEventHandlers = [];
+  }
+
+  /**
    * Set up event listeners on the BifrostNode.
    */
   private setupNodeEventListeners(): void {
     if (!this.node) return;
+
+    // Clean up any existing handlers first to prevent duplicates
+    this.cleanupNodeEventListeners();
 
     // Cast node to any for event registration since BifrostNode types
     // don't include all the internal event names
@@ -510,8 +534,14 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       on: (event: string, handler: (...args: unknown[]) => void) => void;
     };
 
+    // Helper to register and track handlers
+    const registerHandler = (event: string, handler: (...args: unknown[]) => void) => {
+      node.on(event, handler);
+      this.nodeEventHandlers.push({ event, handler });
+    };
+
     // Signing request received
-    node.on('/sig/handler/req', (data: unknown) => {
+    const handleSigningRequest = (data: unknown) => {
       const request: SigningRequest = {
         id: generateRequestId(),
         pubkey: (data as { pubkey?: string })?.pubkey || 'unknown',
@@ -530,10 +560,11 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       });
 
       this.emit('signing:request', request);
-    });
+    };
+    registerHandler('/sig/handler/req', handleSigningRequest);
 
     // Signing completed
-    node.on('/sig/handler/ret', (data: unknown) => {
+    const handleSigningComplete = (data: unknown) => {
       // Try to correlate with pending request
       const matchedRequest = this.findAndRemovePendingRequest(data);
       const result: SigningResult = {
@@ -546,10 +577,11 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         ...(data as Record<string, unknown>),
       });
       this.emit('signing:complete', result);
-    });
+    };
+    registerHandler('/sig/handler/ret', handleSigningComplete);
 
     // Signing error
-    node.on('/sig/handler/err', (error: unknown) => {
+    const handleSigningError = (error: unknown) => {
       // Try to correlate with pending request
       const matchedRequest = this.findAndRemovePendingRequest(error);
       const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -558,29 +590,34 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         error: errorObj.message,
       });
       this.emit('signing:error', errorObj, matchedRequest?.id);
-    });
+    };
+    registerHandler('/sig/handler/err', handleSigningError);
 
     // Node error
-    node.on('error', (error: unknown) => {
+    const handleNodeError = (error: unknown) => {
       const errorObj = error instanceof Error ? error : new Error(String(error));
       this.log('error', 'system', 'Node error', { error: errorObj.message });
       this.emit('error', errorObj);
-    });
+    };
+    registerHandler('error', handleNodeError);
 
     // Node closed
-    node.on('closed', () => {
+    const handleNodeClosed = () => {
       this.log('warn', 'system', 'Node connection closed');
       this.emit('status:changed', 'stopped');
-    });
+    };
+    registerHandler('closed', handleNodeClosed);
 
     // Debug/info messages
-    node.on('debug', (message: unknown) => {
+    const handleDebug = (message: unknown) => {
       this.log('debug', 'system', String(message));
-    });
+    };
+    registerHandler('debug', handleDebug);
 
-    node.on('info', (message: unknown) => {
+    const handleInfo = (message: unknown) => {
       this.log('info', 'system', String(message));
-    });
+    };
+    registerHandler('info', handleInfo);
   }
 
   /**

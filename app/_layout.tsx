@@ -121,11 +121,8 @@ function RootLayoutNav() {
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
-          {hasCredentials ? (
-            <Stack.Screen name="(tabs)" />
-          ) : (
-            <Stack.Screen name="onboarding" />
-          )}
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="+not-found" options={{ headerShown: true, title: 'Not Found' }} />
         </Stack>
       </ThemeProvider>
