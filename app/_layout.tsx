@@ -1,15 +1,29 @@
+// Note: crypto polyfill is now handled in index.js entry point
+// (must run before ES module imports are evaluated)
+
+// Apply nostr-tools SimplePool shim to fix relay filter errors
+// Must run before any signer connections are made
+import '@/polyfills/nostr-shim';
+
 import '../global.css';
 
+import { useEffect, useState } from 'react';
+import { LogBox } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+
+// Suppress SafeAreaView deprecation warning from react-navigation internals
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { useCredentialStore } from '@/stores';
+import { useIgloo } from '@/hooks';
+import { secureStorage } from '@/services/storage/secureStorage';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,12 +63,70 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const hasCredentials = useCredentialStore((s) => s.hasCredentials);
+  const isHydrated = useCredentialStore((s) => s.isHydrated);
+  const hydrateFromStorage = useCredentialStore((s) => s.hydrateFromStorage);
+  const setShareDetails = useCredentialStore((s) => s.setShareDetails);
+  const [isReady, setIsReady] = useState(false);
+
+  // Initialize IglooService event listeners and get the getShareDetails function
+  const { getShareDetails } = useIgloo();
+
+  // Hydrate credential state from storage on mount
+  useEffect(() => {
+    async function prepare() {
+      await hydrateFromStorage();
+      setIsReady(true);
+    }
+    prepare();
+  }, [hydrateFromStorage]);
+
+  // Refresh shareDetails after hydration to ensure we have the latest calculated values
+  // (fixes stale cached data where totalMembers was undefined)
+  useEffect(() => {
+    async function refreshShareDetails() {
+      if (!isHydrated || !hasCredentials) return;
+
+      try {
+        const credentials = await secureStorage.getCredentials();
+        if (credentials) {
+          const details = getShareDetails(credentials.share, credentials.group);
+          setShareDetails(details);
+          console.log('[RootLayout] Refreshed shareDetails:', details);
+        }
+      } catch (error) {
+        console.warn('[RootLayout] Failed to refresh shareDetails:', error);
+      }
+    }
+    refreshShareDetails();
+  }, [isHydrated, hasCredentials, getShareDetails, setShareDetails]);
+
+  // Handle navigation based on credentials
+  useEffect(() => {
+    if (!isReady || !isHydrated) return;
+
+    // Navigate to appropriate screen based on credential state
+    if (!hasCredentials) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      router.replace('/onboarding' as any);
+    }
+  }, [isReady, isHydrated, hasCredentials]);
+
+  // Don't render until we know the credential state
+  if (!isReady || !isHydrated) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          {hasCredentials ? (
+            <Stack.Screen name="(tabs)" />
+          ) : (
+            <Stack.Screen name="onboarding" />
+          )}
+          <Stack.Screen name="+not-found" options={{ headerShown: true, title: 'Not Found' }} />
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>

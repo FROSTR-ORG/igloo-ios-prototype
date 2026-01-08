@@ -8,12 +8,18 @@ Expo Router implements file-based routing, similar to Next.js. The file structur
 
 ```
 app/
-├── _layout.tsx          → Root layout (wraps everything)
-├── (tabs)/              → Tab group (parentheses = layout group)
+├── _layout.tsx          → Root layout (credential-based routing, theme)
+├── (tabs)/              → Tab group (main app after onboarding)
 │   ├── _layout.tsx      → Tab navigator configuration
-│   ├── signer.tsx       → /signer route
-│   ├── sessions.tsx     → /sessions route
-│   └── settings.tsx     → /settings route
+│   ├── signer.tsx       → /signer route - Start/stop signer, status
+│   ├── sessions.tsx     → /sessions route - Peer list (displayed as "Peers")
+│   ├── logs.tsx         → /logs route - Verbose event log
+│   └── settings.tsx     → /settings route - Relay config, danger zone
+├── onboarding/          → Credential import flow
+│   ├── _layout.tsx      → Stack navigator for onboarding
+│   ├── index.tsx        → Welcome screen with options
+│   ├── scan.tsx         → QR code scanner (two-step)
+│   └── manual.tsx       → Manual text input
 ├── +html.tsx            → Web-only HTML template
 └── +not-found.tsx       → 404 catch-all route
 ```
@@ -32,31 +38,77 @@ app/
 
 ## App Layout Structure
 
+### Custom Entry Point (`index.js`)
+
+The app uses a custom entry point to ensure the crypto polyfill runs before any ES module imports are evaluated:
+
+```javascript
+// index.js - Custom entry point (CommonJS)
+const { getRandomValues } = require('expo-crypto');
+
+// Polyfill crypto.getRandomValues on all global objects
+function polyfillCrypto(target) {
+  if (!target) return;
+  if (!target.crypto) {
+    target.crypto = {};
+  }
+  target.crypto.getRandomValues = getRandomValues;
+}
+
+polyfillCrypto(global);
+polyfillCrypto(globalThis);
+if (typeof window !== 'undefined') polyfillCrypto(window);
+
+// Now load expo-router
+require('expo-router/entry');
+```
+
+**Why a custom entry point?**
+- ES module imports are hoisted and evaluated before code runs
+- If the polyfill was just "first import" in _layout.tsx, other imports would still load first
+- A custom entry point ensures the polyfill runs before expo-router loads any modules
+
+The entry point is configured in `package.json`:
+```json
+{
+  "main": "index.js"
+}
+```
+
 ### Root Layout (`app/_layout.tsx`)
 
-The root layout handles global concerns:
+The root layout handles global concerns and credential-based routing:
 
 ```typescript
-// 1. Import global CSS for NativeWind
+// Note: crypto polyfill is now handled in index.js entry point
+// (must run before ES module imports are evaluated)
+
 import '../global.css';
 
-// 2. Font loading
-const [loaded, error] = useFonts({
-  SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  ...FontAwesome.font,
-});
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 
-// 3. Splash screen management
-SplashScreen.preventAutoHideAsync();
+// 1. Initialize credential state and event listeners
+useIgloo();  // Sets up IglooService event listeners
+hydrateFromStorage();  // Load credential existence from SecureStore
+
+// 2. Credential-based routing
 useEffect(() => {
-  if (loaded) SplashScreen.hideAsync();
-}, [loaded]);
+  if (!isReady || !isHydrated) return;
+  if (!hasCredentials) {
+    router.replace('/onboarding');
+  }
+}, [isReady, isHydrated, hasCredentials]);
 
-// 4. SafeAreaProvider + Theme provider wrapping navigation
+// 3. SafeAreaProvider + Theme provider wrapping navigation
 <SafeAreaProvider>
   <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
     <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {hasCredentials ? (
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      ) : (
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      )}
     </Stack>
   </ThemeProvider>
 </SafeAreaProvider>
@@ -65,9 +117,12 @@ useEffect(() => {
 **Key responsibilities:**
 - Load custom fonts (SpaceMono) and icon fonts (FontAwesome)
 - Manage splash screen visibility
+- Suppress non-actionable runtime warnings via `LogBox.ignoreLogs()`
+- Hydrate credential state from SecureStore
+- Route to onboarding if no credentials exist
 - Provide safe area context (required by react-navigation)
 - Provide theme context (light/dark)
-- Define root navigation stack
+- Define root navigation stack with conditional screens
 
 ### Tab Layout (`app/(tabs)/_layout.tsx`)
 
@@ -75,7 +130,7 @@ Configures the bottom tab navigator:
 
 ```typescript
 function TabBarIcon(props: { name: FontAwesome['name']; color: string }) {
-  return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={22} style={{ marginBottom: -3 }} {...props} />;
 }
 
 <Tabs screenOptions={{
@@ -92,8 +147,15 @@ function TabBarIcon(props: { name: FontAwesome['name']; color: string }) {
   <Tabs.Screen
     name="sessions"
     options={{
-      title: 'Sessions',
-      tabBarIcon: ({ color }) => <TabBarIcon name="link" color={color} />,
+      title: 'Peers',
+      tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+    }}
+  />
+  <Tabs.Screen
+    name="logs"
+    options={{
+      title: 'Logs',
+      tabBarIcon: ({ color }) => <TabBarIcon name="list-alt" color={color} />,
     }}
   />
   <Tabs.Screen
@@ -108,7 +170,8 @@ function TabBarIcon(props: { name: FontAwesome['name']; color: string }) {
 
 **Tab icons:**
 - Signer: `key` (FontAwesome)
-- Sessions: `link` (FontAwesome)
+- Peers: `users` (FontAwesome) - Note: file is `sessions.tsx` but displays as "Peers"
+- Logs: `list-alt` (FontAwesome)
 - Settings: `cog` (FontAwesome)
 
 ---
@@ -141,11 +204,12 @@ export default function ScreenName() {
 
 ### Screen Purposes
 
-| Screen | Purpose | Future Implementation |
-|--------|---------|----------------------|
-| **Signer** | Sign Nostr events | FROST signing UI, event preview, signature status |
-| **Sessions** | Manage signing sessions | Active session list, join/create session, participant status |
-| **Settings** | App configuration | Key share management, relay configuration, preferences |
+| Screen | Purpose |
+|--------|---------|
+| **Signer** (`signer.tsx`) | Start/stop FROST signer, view status, session stats, recent signing requests |
+| **Peers** (`sessions.tsx`) | View peers in signing group, ping for status, configure send/receive policies |
+| **Logs** (`logs.tsx`) | Verbose event log with level/category filtering, auto-scroll, clear |
+| **Settings** (`settings.tsx`) | Relay configuration, credential info display, danger zone (clear credentials) |
 
 ---
 
@@ -177,11 +241,18 @@ const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
+
 module.exports = withNativeWind(config, { input: './global.css' });
 ```
 
 - Wraps Metro with NativeWind transformer
 - Processes `global.css` for Tailwind classes
+
+**Note on warnings:** The `@noble/hashes` exports mismatch warning is fully eliminated via:
+1. Bun `overrides` in `package.json` (dedupes to single version)
+2. Postinstall patch script (`scripts/patch-noble-hashes.js`) that adds the missing `./crypto.js` export
+
+See `llm/workflow/development.md` for complete details.
 
 ### 3. Tailwind Configuration (`tailwind.config.js`)
 

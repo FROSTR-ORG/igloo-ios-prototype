@@ -21,36 +21,76 @@ This allows k-of-n multi-signature setups while maintaining the user's original 
 ```
 igloo-ios-prototype/
 ├── app/                      # Expo Router - file-based routing
-│   ├── _layout.tsx           # Root layout (fonts, theme, splash)
+│   ├── _layout.tsx           # Root layout (credential routing, theme)
 │   ├── (tabs)/               # Tab navigator group
 │   │   ├── _layout.tsx       # Tab bar configuration
-│   │   ├── signer.tsx        # Sign Nostr events
-│   │   ├── sessions.tsx      # Manage signing sessions
-│   │   └── settings.tsx      # App configuration
+│   │   ├── signer.tsx        # Start/stop signer, status, stats
+│   │   ├── sessions.tsx      # Peer list, ping, policy management
+│   │   ├── logs.tsx          # Verbose event log with filtering
+│   │   └── settings.tsx      # Relay config, credential info
+│   ├── onboarding/           # Credential import flow
+│   │   ├── _layout.tsx       # Stack navigator
+│   │   ├── index.tsx         # Welcome screen
+│   │   ├── scan.tsx          # QR code scanner (two-step)
+│   │   └── manual.tsx        # Manual text input
 │   ├── +html.tsx             # Web HTML template
 │   └── +not-found.tsx        # 404 fallback
 │
+├── services/                 # Core services
+│   ├── igloo/
+│   │   ├── index.ts          # Barrel export
+│   │   ├── IglooService.ts   # EventEmitter wrapping igloo-core
+│   │   └── types.ts          # Service-specific types
+│   └── storage/
+│       └── secureStorage.ts  # expo-secure-store wrapper
+│
+├── stores/                   # Zustand state management
+│   ├── index.ts              # Barrel export
+│   ├── credentialStore.ts    # Credential state + hydration
+│   ├── signerStore.ts        # Signer status (ephemeral)
+│   ├── peerStore.ts          # Peers + policies (persisted)
+│   ├── relayStore.ts         # Relay configuration (persisted)
+│   └── logStore.ts           # Event log (in-memory buffer)
+│
+├── hooks/                    # React hooks
+│   ├── index.ts              # Barrel export
+│   ├── useIgloo.ts           # Service event bridge
+│   ├── useSigner.ts          # Signer control
+│   ├── usePeers.ts           # Peer management
+│   └── useCredentials.ts     # Credential operations
+│
+├── types/
+│   └── index.ts              # Shared type definitions
+│
 ├── components/               # Reusable React components
-│   ├── ExternalLink.tsx      # Platform-aware external links
-│   ├── useColorScheme.ts     # Theme detection hook (+ .web.ts variant)
-│   └── useClientOnlyValue.ts # Client-only rendering hook (+ .web.ts variant)
+│   ├── ui/                   # Generic UI components
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   ├── Badge.tsx
+│   │   └── Switch.tsx
+│   ├── ExternalLink.tsx
+│   ├── useColorScheme.ts
+│   └── useClientOnlyValue.ts
 │
 ├── constants/
 │   └── Colors.ts             # Light/dark theme colors
 │
 ├── assets/
 │   ├── fonts/
-│   │   └── SpaceMono-Regular.ttf
 │   └── images/
-│       ├── icon.png
-│       ├── splash-icon.png
-│       ├── adaptive-icon.png
-│       └── favicon.png
 │
 ├── llm/                      # LLM-focused documentation
 │   ├── context/              # Codebase context and overview
 │   ├── implementation/       # Implementation details
 │   └── workflow/             # Development workflow guides
+│
+├── scripts/                  # Build/install scripts
+│   └── patch-noble-hashes.js # Postinstall patch for @noble/hashes exports
+│
+├── index.js                  # Custom entry point (crypto polyfill + expo-router)
+├── polyfills/                # Runtime polyfills for React Native
+│   └── crypto.ts             # Crypto polyfill (legacy - now in index.js)
 │
 ├── Configuration Files:
 ├── app.json                  # Expo app configuration
@@ -79,10 +119,23 @@ igloo-ios-prototype/
 | **NativeWind** | 4.2.1 | Tailwind CSS for React Native |
 | **Tailwind CSS** | 3.4.17 | Utility-first CSS framework |
 | **Bun** | 1.3+ | Fast JavaScript runtime & package manager |
+| **@frostr/igloo-core** | 0.2.4 | FROST threshold signing core library |
+| **Zustand** | 5.0.9 | Lightweight state management |
+| **@shopify/flash-list** | 2.0.2 | High-performance list (pinned for Expo 54) |
 
 ---
 
 ## Core Dependencies
+
+### FROST Signing
+- `@frostr/igloo-core` - Core library for FROST threshold signing
+- `@frostr/bifrost` - Bifrost node for relay communication (peer dep)
+- `nostr-tools` - Nostr protocol utilities (peer dep)
+
+### State Management & Storage
+- `zustand` - Lightweight state management with persist middleware
+- `expo-secure-store` - Encrypted credential storage (Keychain/Keystore)
+- `@react-native-async-storage/async-storage` - Persistent non-sensitive storage
 
 ### Navigation & Routing
 - `expo-router` - File-based routing (like Next.js for React Native)
@@ -101,11 +154,20 @@ igloo-ios-prototype/
 - `expo-status-bar` - Status bar styling
 - `expo-linking` - Deep linking support
 - `expo-web-browser` - In-app browser
+- `expo-camera` - QR code scanning for credential import
+- `expo-clipboard` - Paste support for credentials
+- `expo-haptics` - Tactile feedback
+- `expo-crypto` - Native crypto for `getRandomValues()` polyfill (required by @noble/hashes)
+
+### Utilities
+- `eventemitter3` - Event system for IglooService
+- `nanoid` - Unique ID generation
 
 ### Animation & Performance
 - `react-native-reanimated` - Smooth 60fps animations
 - `react-native-screens` - Native screen optimizations
 - `react-native-safe-area-context` - Safe area handling
+- `@shopify/flash-list` - High-performance list component (use version **2.0.2** for Expo 54 compatibility)
 
 ### Platform Support
 - `react-native-web` - Web platform support
@@ -139,6 +201,12 @@ Defines app metadata, icons, splash screen, and platform-specific settings:
 ### `metro.config.js` - Bundler
 - Expo default config
 - NativeWind middleware with `global.css` input
+
+### `package.json` - Overrides & Postinstall
+- `@noble/hashes` forced to `1.8.0` via `overrides` to dedupe dependencies
+- Postinstall script (`scripts/patch-noble-hashes.js`) patches the missing `./crypto.js` export
+- Together these fully eliminate the `@noble/hashes` Metro warnings
+- See `llm/workflow/development.md` for details on known warnings
 
 ### `eslint.config.js` - Linting (ESLint v9 Flat Config)
 - Uses ESLint v9's new flat config format (not legacy `.eslintrc`)
@@ -203,6 +271,21 @@ dark: {
 | iOS | Primary | Full support, tablet enabled |
 | Android | Supported | Edge-to-edge, adaptive icons |
 | Web | Supported | Static output, Metro bundler |
+
+---
+
+## Implemented Features
+
+The app is a functional FROST threshold signer with:
+
+- **Credential Import** - QR scan (two-step) or manual text entry for bfshare/bfgroup
+- **Signer Control** - Manual start/stop with status display and session stats
+- **Peer Management** - View peers, ping for online status, configure send/receive policies
+- **Relay Configuration** - Add/remove relays, reset to defaults
+- **Event Logging** - Verbose log with level/category filtering
+- **Echo Signal** - Notify group on successful onboarding
+
+> See `llm/implementation/` for detailed documentation on each feature.
 
 ---
 

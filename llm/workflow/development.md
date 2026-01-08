@@ -359,6 +359,100 @@ components/
 
 ## Common Issues
 
+### Known Warnings
+
+| Warning | Source | Status |
+|---------|--------|--------|
+| `@noble/hashes` exports mismatch | `nostr-tools`, `@cmdcode/frost`, `@cmdcode/buff` | **Fixed** via postinstall patch script + bun overrides |
+| `SafeAreaView has been deprecated` | `react-navigation` internals | **Suppressed** in app UI via `LogBox.ignoreLogs()`. Still appears in Metro terminal (unavoidable - from dependency internals). |
+
+### Package Version Compatibility
+
+Some packages require specific versions or configuration:
+
+| Package | Version | Config | Notes |
+|---------|---------|--------|-------|
+| `@shopify/flash-list` | 2.0.2 | `dependencies` | Pinned for Expo 54 compatibility |
+| `@noble/hashes` | 1.8.0 | `overrides` | Forces single version across all dependencies |
+
+### Crypto Polyfill
+
+React Native doesn't provide a global `crypto` object, but `@noble/hashes` (used by nostr-tools and igloo-core) requires `crypto.getRandomValues()`. This is fixed via a **custom entry point**:
+
+**Why a custom entry point?**
+
+The `@frostr/bifrost` library bundles its own copy of `@noble/hashes` which captures the `crypto` reference at **module evaluation time**. ES module `import` statements are hoisted, meaning all imports are resolved before any code executes. This makes it impossible to polyfill crypto via a normal import - by the time the polyfill runs, bifrost has already cached `undefined`.
+
+**Solution:**
+
+1. **Custom entry point** (`index.js`) - Uses CommonJS `require()` to set up crypto polyfill synchronously before loading expo-router
+2. **expo-crypto** - Provides native crypto implementation via `getRandomValues`
+
+```javascript
+// index.js - Custom entry point
+const { getRandomValues } = require('expo-crypto');
+
+// Polyfill crypto.getRandomValues on all global objects
+function polyfillCrypto(target) {
+  if (!target) return;
+  if (!target.crypto) {
+    target.crypto = {};
+  }
+  // Always override - RN may have incomplete crypto object
+  target.crypto.getRandomValues = getRandomValues;
+}
+
+// Apply to all possible global scopes
+polyfillCrypto(global);
+polyfillCrypto(globalThis);
+if (typeof window !== 'undefined') {
+  polyfillCrypto(window);
+}
+
+// Now load the actual app entry point
+require('expo-router/entry');
+```
+
+```json
+// package.json
+{
+  "main": "./index.js"  // NOT "expo-router/entry"
+}
+```
+
+**IMPORTANT**: Do NOT change the entry point back to `expo-router/entry` or the crypto polyfill will fail to apply in time.
+
+Without this polyfill, operations will fail with:
+```
+crypto.getRandomValues must be defined
+```
+
+### @noble/hashes Patch System
+
+The `@noble/hashes` package has an exports mismatch where dependencies import `./crypto.js` but the package only exports `./crypto`. This is fixed via:
+
+1. **Bun overrides** - Forces all dependencies to use v1.8.0:
+   ```json
+   {
+     "overrides": {
+       "@noble/hashes": "1.8.0"
+     }
+   }
+   ```
+
+2. **Postinstall patch script** - Adds the missing `./crypto.js` export:
+   ```bash
+   # scripts/patch-noble-hashes.js runs automatically on bun install
+   "postinstall": "node scripts/patch-noble-hashes.js"
+   ```
+
+The patch script (`scripts/patch-noble-hashes.js`) modifies `node_modules/@noble/hashes/package.json` to add the `./crypto.js` export mapping. It's idempotent and won't fail if already patched.
+
+Check compatibility with:
+```bash
+bunx expo doctor
+```
+
 ### Metro Bundler Cache
 
 If you experience stale code or strange errors:
