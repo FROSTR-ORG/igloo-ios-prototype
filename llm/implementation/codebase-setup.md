@@ -366,6 +366,9 @@ import { View, Text } from 'react-native';
 - Uses custom `frost-*` brand colors from `tailwind.config.js`
 - No boilerplate (no `StyleSheet.create`)
 
+**NativeWind Caveats:**
+- `last:`, `first:`, `odd:`, `even:` pseudo-classes require the parent element to have the `parent` className for context. In practice, prefer explicit `isLast` props or index-based conditional styling over these variants for reliable behavior.
+
 ### Platform Hooks
 
 **`useColorScheme.ts`**

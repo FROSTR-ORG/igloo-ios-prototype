@@ -1,12 +1,16 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, Alert, Pressable, StyleSheet, Animated } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import * as Haptics from 'expo-haptics';
-import { Button, Badge } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 import { useCredentials } from '@/hooks';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+// Timer functions available in React Native - declare for TypeScript
+declare const setTimeout: (callback: () => void, delay: number) => number;
+declare const clearTimeout: (id: number) => void;
 
 type ScanStep = 'group' | 'transition' | 'share';
 
@@ -23,15 +27,15 @@ export default function OnboardingScan() {
   const SCAN_COOLDOWN = 1500; // 1.5 seconds between scans
 
   // Animation for error message
-  const errorOpacity = useRef(new Animated.Value(0)).current;
+  const errorOpacity = useMemo(() => new Animated.Value(0), []);
 
   // Animation for transition overlay
-  const transitionOpacity = useRef(new Animated.Value(0)).current;
-  const transitionScale = useRef(new Animated.Value(0.8)).current;
+  const transitionOpacity = useMemo(() => new Animated.Value(0), []);
+  const transitionScale = useMemo(() => new Animated.Value(0.8), []);
 
   // Refs to track timeouts for cleanup
-  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Show error with auto-dismiss
   const showError = useCallback((message: string) => {

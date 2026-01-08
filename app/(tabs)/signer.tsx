@@ -151,10 +151,14 @@ export default function SignerTab() {
             </View>
           ) : (
             <View className="space-y-2">
-              {recentRequests.slice(0, 5).map((request) => (
+              {recentRequests.slice(0, 5).map((request, index, arr) => (
                 <View
                   key={request.id}
-                  className="flex-row items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                  className={`flex-row items-center justify-between py-2 ${
+                    index === arr.length - 1
+                      ? ''
+                      : 'border-b border-gray-100 dark:border-gray-700'
+                  }`}
                 >
                   <View className="flex-1">
                     <Text className="text-sm text-gray-900 dark:text-white">

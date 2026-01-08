@@ -484,6 +484,7 @@ Validation happens in two stages:
     <InfoRow
       label="Threshold"
       value={`${shareDetails.threshold}-of-${shareDetails.totalMembers}`}
+      isLast={!shareDetails.groupPubkey}
     />
     {shareDetails.groupPubkey && (
       <Pressable onPress={handleCopyGroupPubkey}>
@@ -491,6 +492,7 @@ Validation happens in two stages:
           label="Group Pubkey"
           value={truncatePubkey(shareDetails.groupPubkey)}
           copyable
+          isLast
         />
       </Pressable>
     )}
@@ -546,7 +548,7 @@ const IGLOO_CORE_VERSION = pkg.dependencies['@frostr/igloo-core']?.replace(/^[\^
 // In the About section
 <Card>
   <InfoRow label="App Version" value={pkg.version} />
-  <InfoRow label="igloo-core" value={IGLOO_CORE_VERSION} />
+  <InfoRow label="igloo-core" value={IGLOO_CORE_VERSION} isLast />
 </Card>
 ```
 

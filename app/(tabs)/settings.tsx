@@ -1,13 +1,13 @@
-import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import * as Haptics from 'expo-haptics';
-import * as Clipboard from 'expo-clipboard';
 import { Button, Card, Input } from '@/components/ui';
+import { useCredentials, useSigner } from '@/hooks';
 import { useRelayStore } from '@/stores';
-import { useSigner, useCredentials } from '@/hooks';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import pkg from '../../package.json';
 
 const IGLOO_CORE_VERSION = pkg.dependencies['@frostr/igloo-core']?.replace(/^[\^~]/, '') ?? 'unknown';
@@ -29,19 +29,18 @@ export default function SettingsTab() {
       return;
     }
 
-    // Validate WebSocket URL
+    // Validate WebSocket URL using regex (URL constructor not available in React Native)
     const url = newRelay.trim();
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
-        setRelayError('URL must start with ws:// or wss://');
-        return;
-      }
-      if (!parsed.host) {
-        setRelayError('Invalid relay URL');
-        return;
-      }
-    } catch {
+    const wsUrlPattern = /^(ws|wss):\/\/([^\s/]+)(\/.*)?$/;
+    const match = url.match(wsUrlPattern);
+    
+    if (!match) {
+      setRelayError('URL must start with ws:// or wss://');
+      return;
+    }
+    
+    const host = match[2];
+    if (!host || host.length === 0) {
       setRelayError('Invalid relay URL');
       return;
     }
@@ -203,6 +202,7 @@ export default function SettingsTab() {
               <InfoRow
                 label="Threshold"
                 value={`${shareDetails.threshold}-of-${shareDetails.totalMembers}`}
+                isLast={!shareDetails.groupPubkey}
               />
               {shareDetails.groupPubkey && (
                 <Pressable onPress={handleCopyGroupPubkey}>
@@ -210,6 +210,7 @@ export default function SettingsTab() {
                     label="Group Pubkey"
                     value={truncatePubkey(shareDetails.groupPubkey)}
                     copyable
+                    isLast
                   />
                 </Pressable>
               )}
@@ -225,7 +226,7 @@ export default function SettingsTab() {
 
           <Card>
             <InfoRow label="App Version" value={pkg.version} />
-            <InfoRow label="igloo-core" value={IGLOO_CORE_VERSION} />
+            <InfoRow label="igloo-core" value={IGLOO_CORE_VERSION} isLast />
           </Card>
         </View>
 
@@ -256,13 +257,19 @@ function InfoRow({
   label,
   value,
   copyable = false,
+  isLast = false,
 }: {
   label: string;
   value: string;
   copyable?: boolean;
+  isLast?: boolean;
 }) {
   return (
-    <View className="flex-row items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+    <View
+      className={`flex-row items-center justify-between py-2 ${
+        isLast ? '' : 'border-b border-gray-100 dark:border-gray-700'
+      }`}
+    >
       <Text className="text-sm text-gray-500 dark:text-gray-400">{label}</Text>
       <View className="flex-row items-center">
         <Text className="text-sm font-medium text-gray-900 dark:text-white">{value}</Text>
