@@ -62,7 +62,7 @@ export default function SettingsTab() {
 
   return (
     <GradientBackground>
-      <SafeAreaView className="flex-1" edges={['bottom']}>
+      <SafeAreaView className="flex-1" edges={[]}>
         <ScrollView className="flex-1" contentContainerClassName="p-4">
           {/* Relay Configuration */}
           <View className="mb-6">

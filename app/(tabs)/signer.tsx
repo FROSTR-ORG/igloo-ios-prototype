@@ -118,7 +118,7 @@ export default function SignerTab() {
 
   return (
     <GradientBackground>
-      <SafeAreaView className="flex-1" edges={['bottom']}>
+      <SafeAreaView className="flex-1" edges={[]}>
         <ScrollView className="flex-1" contentContainerClassName="p-4">
           {/* Status Card */}
           <Card variant="elevated" className="mb-4">
