@@ -48,8 +48,7 @@ export function Collapsible({
       <Pressable
         onPress={handleToggle}
         {...(Platform.OS === 'web' && {
-           
-          onKeyPress: (event: React.KeyboardEvent<HTMLElement>) => {
+          onKeyPress: (event: React.KeyboardEvent) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               handleToggle();

@@ -83,7 +83,7 @@ export function QRCodeModal({
           {/* Truncated Value Preview */}
           <View className="bg-gray-800 rounded-lg p-3 mb-4">
             <Text className="text-xs font-mono text-gray-400 text-center" numberOfLines={2}>
-              {value.length > 60 ? `${value.slice(0, 30)}...${value.slice(-30)}` : value}
+              {value.length > 63 ? `${value.slice(0, 30)}...${value.slice(-30)}` : value}
             </Text>
           </View>
 

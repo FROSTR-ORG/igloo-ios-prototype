@@ -335,9 +335,9 @@ function PeerCard({
                 {truncatePubkey(peer.pubkey)}
               </Text>
               {copied ? (
-                <Check size={12} color="#4ade80" strokeWidth={2} className="ml-1" />
+                <Check size={12} color="#4ade80" strokeWidth={2} style={{marginLeft: 4}} />
               ) : (
-                <Copy size={12} color="#9ca3af" strokeWidth={2} className="ml-1" />
+                <Copy size={12} color="#9ca3af" strokeWidth={2} style={{marginLeft: 4}} />
               )}
             </View>
           </Pressable>
@@ -364,13 +364,7 @@ function PeerCard({
           {/* Per-Peer Ping Button */}
           {isSignerRunning && (
             <IconButton
-              icon={
-                isPinging ? (
-                  <Loader2 size={14} color="#9ca3af" strokeWidth={2} />
-                ) : (
-                  <Radio size={14} color="#9ca3af" strokeWidth={2} />
-                )
-              }
+              icon={<Radio size={14} color="#9ca3af" strokeWidth={2} />}
               variant="ghost"
               size="sm"
               onPress={(e) => {

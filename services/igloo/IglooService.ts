@@ -488,7 +488,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         timestamp: result.timestamp,
       };
     } catch (error) {
-      this.log('error', 'peer', `Ping failed for ${truncatePubkey(pubkey)}`, {
+      this.log('error', 'peer', `Ping failed for ${truncatePubkey(normalizedPubkey)}`, {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;

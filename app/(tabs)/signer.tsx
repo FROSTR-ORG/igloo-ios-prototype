@@ -57,16 +57,21 @@ export default function SignerTab() {
 
   // Load credentials on mount
   useEffect(() => {
+    let mounted = true;
+
     async function loadCredentials() {
       const creds = await secureStorage.getCredentials();
-      if (creds) {
-        setCredentials(creds);
-        // Decode credentials
-        setDecodedGroup(decodeGroupCredential(creds.group));
-        setDecodedShare(decodeShareCredential(creds.share));
-      }
+      if (!mounted || !creds) return;
+
+      setCredentials(creds);
+      setDecodedGroup(decodeGroupCredential(creds.group));
+      setDecodedShare(decodeShareCredential(creds.share));
     }
     loadCredentials();
+
+    return () => {
+      mounted = false;
+    };
   }, [decodeGroupCredential, decodeShareCredential]);
 
   // Update uptime every second when running
@@ -364,8 +369,19 @@ function SignerStatusIndicator({ status }: { status: SignerStatus }) {
   const spinAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
+    // Always stop and reset all animations before starting new ones
+    if (animationRef.current) {
+      animationRef.current.stop();
+      animationRef.current = null;
+    }
+    if (spinAnimationRef.current) {
+      spinAnimationRef.current.stop();
+      spinAnimationRef.current = null;
+    }
+    pulseAnim.setValue(1);
+    spinAnim.setValue(0);
+
     if (status === 'running') {
-      // Start pulse animation when running
       animationRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -382,7 +398,6 @@ function SignerStatusIndicator({ status }: { status: SignerStatus }) {
       );
       animationRef.current.start();
     } else if (status === 'connecting') {
-      // Start spin animation when connecting
       spinAnimationRef.current = Animated.loop(
         Animated.timing(spinAnim, {
           toValue: 1,
@@ -391,24 +406,16 @@ function SignerStatusIndicator({ status }: { status: SignerStatus }) {
         })
       );
       spinAnimationRef.current.start();
-    } else {
-      // Stop animations and reset
-      if (animationRef.current) {
-        animationRef.current.stop();
-      }
-      if (spinAnimationRef.current) {
-        spinAnimationRef.current.stop();
-      }
-      pulseAnim.setValue(1);
-      spinAnim.setValue(0);
     }
 
     return () => {
       if (animationRef.current) {
         animationRef.current.stop();
+        animationRef.current = null;
       }
       if (spinAnimationRef.current) {
         spinAnimationRef.current.stop();
+        spinAnimationRef.current = null;
       }
     };
   }, [status, pulseAnim, spinAnim]);

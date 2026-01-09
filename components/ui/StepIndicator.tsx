@@ -36,11 +36,19 @@ export function StepIndicator({
   currentStep,
   className = '',
 }: StepIndicatorProps) {
+  const clampedStep = Math.max(0, Math.min(currentStep, steps.length - 1));
+
+  if (__DEV__ && currentStep !== clampedStep) {
+    console.warn(
+      `StepIndicator: currentStep ${currentStep} out of range [0, ${steps.length - 1}], clamped to ${clampedStep}`
+    );
+  }
+
   return (
     <View className={`flex-row items-center justify-center ${className}`}>
       {steps.map((step, index) => {
-        const isCompleted = index < currentStep;
-        const isCurrent = index === currentStep;
+        const isCompleted = index < clampedStep;
+        const isCurrent = index === clampedStep;
         const isLast = index === steps.length - 1;
 
         return (

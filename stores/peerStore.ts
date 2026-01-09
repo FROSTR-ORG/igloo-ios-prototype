@@ -6,7 +6,11 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 const normalizePeerKey = (pubkey?: string | null): string => {
   if (!pubkey) return '';
-  return normalizePubkey(pubkey).toLowerCase();
+  try {
+    return normalizePubkey(pubkey).toLowerCase();
+  } catch {
+    return '';
+  }
 };
 
 const findPeerKey = (peers: Record<string, Peer>, pubkey: string) => {

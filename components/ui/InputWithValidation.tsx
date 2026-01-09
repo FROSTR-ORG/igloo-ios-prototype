@@ -2,7 +2,7 @@ import { View, Text, TextInput, type TextInputProps } from 'react-native';
 import { useState } from 'react';
 import Colors from '@/constants/Colors';
 
-interface InputWithValidationProps extends TextInputProps {
+export interface InputWithValidationProps extends TextInputProps {
   label: string | React.ReactNode;
   value: string;
   onChangeText: (value: string) => void;
@@ -62,6 +62,7 @@ export function InputWithValidation({
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor={Colors.placeholder}
+        {...props}
         onFocus={(e) => {
           setIsFocused(true);
           props.onFocus?.(e);
@@ -72,7 +73,6 @@ export function InputWithValidation({
         }}
         multiline={multiline}
         textAlignVertical={multiline ? 'top' : 'center'}
-        {...props}
       />
 
       {/* Error message */}

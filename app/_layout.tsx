@@ -9,7 +9,6 @@ import '../global.css';
 
 import { useEffect, useState } from 'react';
 import { LogBox } from 'react-native';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 // Suppress SafeAreaView deprecation warning from react-navigation internals
 LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
@@ -40,7 +39,6 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ShareTechMono: require('../assets/fonts/ShareTechMono-Regular.ttf'),
-    ...FontAwesome.font,
   });
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.

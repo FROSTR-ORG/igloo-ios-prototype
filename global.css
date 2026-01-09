@@ -134,6 +134,7 @@
     @apply bg-gray-900 border border-blue-900/30 text-gray-100 rounded-lg;
   }
 
+  /* Applied manually via onFocus/onBlur state in RN components (CSS :focus doesn't work in React Native) */
   .igloo-input-focus {
     @apply border-blue-500;
   }
