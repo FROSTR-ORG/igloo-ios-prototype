@@ -1,8 +1,28 @@
-import { Badge, Button, Card, Switch } from '@/components/ui';
-import { usePeers, useSigner } from '@/hooks';
+import {
+  Badge,
+  Button,
+  Card,
+  Switch,
+  IconButton,
+  HelpTooltip,
+  GradientBackground,
+} from '@/components/ui';
+import { usePeers, useSigner, useCopyFeedback } from '@/hooks';
 import type { Peer } from '@/types';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import * as Clipboard from 'expo-clipboard';
+import {
+  Radio,
+  User,
+  Users,
+  CheckCircle,
+  Info,
+  ChevronUp,
+  ChevronDown,
+  RefreshCw,
+  SlidersHorizontal,
+  Copy,
+  Check,
+  Loader2,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -17,12 +37,15 @@ export default function PeersTab() {
     onlineCount,
     totalCount,
     pingPeers,
+    pingPeer,
     setPeerPolicy,
     loadPeers,
   } = usePeers();
 
   const [isPinging, setIsPinging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pingingPeers, setPingingPeers] = useState<Set<string>>(new Set());
+  const { copied: selfCopied, copy: copySelf } = useCopyFeedback();
 
   const handlePingAll = useCallback(async () => {
     if (!isRunning) {
@@ -42,6 +65,28 @@ export default function PeersTab() {
     }
   }, [isRunning, pingPeers]);
 
+  const handlePingSinglePeer = useCallback(async (pubkey: string) => {
+    if (!isRunning) {
+      Alert.alert('Signer Not Running', 'Start the signer to ping peers.');
+      return;
+    }
+
+    setPingingPeers((prev) => new Set(prev).add(pubkey));
+    try {
+      await pingPeer(pubkey, 5000);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Ping Failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setPingingPeers((prev) => {
+        const next = new Set(prev);
+        next.delete(pubkey);
+        return next;
+      });
+    }
+  }, [isRunning, pingPeer]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -53,140 +98,184 @@ export default function PeersTab() {
     }
   }, [loadPeers]);
 
-  const handleCopyPubkey = useCallback(async (pubkey: string) => {
-    await Clipboard.setStringAsync(pubkey);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  const handleCopySelfPubkey = useCallback(async () => {
+    if (selfPubkey) {
+      await copySelf(selfPubkey);
+    }
+  }, [selfPubkey, copySelf]);
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-gray-900" edges={['bottom']}>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="p-4"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        {/* Header Stats */}
-        <Card className="mb-4">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-sm text-gray-500 dark:text-gray-400">Peers in Group</Text>
-              <View className="flex-row items-center mt-1">
-                <Text className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {totalCount}
-                </Text>
-                {isRunning && (
-                  <Badge
-                    label={`${onlineCount} online`}
-                    variant={onlineCount > 0 ? 'success' : 'default'}
-                    size="sm"
-                    dot
-                    className="ml-2"
+    <GradientBackground>
+      <SafeAreaView className="flex-1" edges={['bottom']}>
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="p-4"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          {/* Header Stats */}
+          <Card className="mb-4">
+            <View className="flex-row items-center justify-between">
+              <View>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-sm text-gray-400">Peers in Group</Text>
+                  <HelpTooltip
+                    title="Peer Status"
+                    content="Shows all peers in your signing group. Online peers can participate in threshold signing. Use Ping All to check which peers are currently available."
+                    size={14}
                   />
-                )}
+                </View>
+                <View className="flex-row items-center mt-1">
+                  <Text className="text-2xl font-bold text-gray-100">
+                    {totalCount}
+                  </Text>
+                  {isRunning && (
+                    <>
+                      <Badge
+                        label={`${onlineCount} online`}
+                        variant={onlineCount > 0 ? 'success' : 'default'}
+                        size="sm"
+                        dot
+                        className="ml-2"
+                      />
+                      {getAveragePing(peers) !== null && (
+                        <View className="flex-row items-center ml-2">
+                          <Radio size={12} color="#9ca3af" strokeWidth={2} />
+                          <Text className="text-sm text-gray-400 ml-1">
+                            {getAveragePing(peers)}ms avg
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </View>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <IconButton
+                  icon={<RefreshCw size={16} color="#9ca3af" strokeWidth={2} />}
+                  variant="ghost"
+                  size="md"
+                  onPress={handleRefresh}
+                />
+                <Button
+                  title={isPinging ? 'Pinging...' : 'Ping All'}
+                  variant="secondary"
+                  size="sm"
+                  loading={isPinging}
+                  disabled={!isRunning}
+                  icon={<Radio size={14} color="#9ca3af" strokeWidth={2} />}
+                  onPress={handlePingAll}
+                />
               </View>
             </View>
-            <Button
-              title={isPinging ? 'Pinging...' : 'Ping All'}
-              variant="secondary"
-              size="sm"
-              loading={isPinging}
-              disabled={!isRunning}
-              icon={<FontAwesome name="wifi" size={14} color="#374151" />}
-              onPress={handlePingAll}
-            />
-          </View>
-          {lastPingTime && (
-            <Text className="text-xs text-gray-400 mt-2">
-              Last ping: {lastPingTime.toLocaleTimeString()}
-            </Text>
-          )}
-        </Card>
+            {lastPingTime && (
+              <Text className="text-xs text-gray-400 mt-2">
+                Last ping: {lastPingTime.toLocaleTimeString()}
+              </Text>
+            )}
+          </Card>
 
-        {/* Self Info */}
-        {selfPubkey && (
-          <Card className="mb-4 bg-frost-50 dark:bg-frost-900/20">
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-frost-200 dark:bg-frost-800 rounded-full items-center justify-center mr-3">
-                <FontAwesome name="user" size={18} color="#0284c7" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-xs text-frost-600 dark:text-frost-400 mb-0.5">
-                  Your Share
-                </Text>
-                <Pressable onPress={() => handleCopyPubkey(selfPubkey)}>
-                  <Text className="text-sm font-mono text-frost-800 dark:text-frost-200">
+          {/* Self Info */}
+          {selfPubkey && (
+            <Card className="mb-4 bg-blue-900/20">
+              <Pressable
+                onPress={handleCopySelfPubkey}
+                className="flex-row items-center"
+              >
+                <View className="w-10 h-10 bg-blue-800 rounded-full items-center justify-center mr-3">
+                  <User size={18} color="#60a5fa" strokeWidth={2} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs text-blue-400 mb-0.5">
+                    Your Share
+                  </Text>
+                  <Text className="text-sm font-mono text-blue-200">
                     {truncatePubkey(selfPubkey)}
                   </Text>
-                </Pressable>
-              </View>
-              <FontAwesome name="check-circle" size={20} color="#0284c7" />
-            </View>
-          </Card>
-        )}
+                </View>
+                <View className="flex-row items-center gap-2">
+                  {selfCopied ? (
+                    <Check size={14} color="#4ade80" strokeWidth={2} />
+                  ) : (
+                    <Copy size={14} color="#60a5fa" strokeWidth={2} />
+                  )}
+                  <CheckCircle size={20} color="#60a5fa" strokeWidth={2} />
+                </View>
+              </Pressable>
+            </Card>
+          )}
 
-        {/* Peer List */}
-        <View className="mb-2">
-          <Text className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-            Other Peers
-          </Text>
-        </View>
-
-        {peers.length === 0 ? (
-          <Card>
-            <View className="py-8 items-center">
-              <FontAwesome name="users" size={32} color="#9ca3af" />
-              <Text className="text-gray-500 dark:text-gray-400 mt-2">
-                No peers found
-              </Text>
-              <Text className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                Add credentials to see your signing group
-              </Text>
-            </View>
-          </Card>
-        ) : (
-          <View className="space-y-3">
-            {peers.map((peer) => (
-              <PeerCard
-                key={peer.pubkey}
-                peer={peer}
-                isSignerRunning={isRunning}
-                onCopyPubkey={handleCopyPubkey}
-                onUpdatePolicy={(policy) => setPeerPolicy(peer.pubkey, policy)}
-              />
-            ))}
+          {/* Peer List */}
+          <View className="mb-2">
+            <Text className="text-sm font-medium text-gray-400 mb-2">
+              Other Peers
+            </Text>
           </View>
-        )}
 
-        {/* Info Card */}
-        {!isRunning && peers.length > 0 && (
-          <Card className="mt-4 bg-yellow-50 dark:bg-yellow-900/20">
-            <View className="flex-row items-start">
-              <FontAwesome name="info-circle" size={16} color="#ca8a04" />
-              <Text className="flex-1 ml-2 text-sm text-yellow-700 dark:text-yellow-400">
-                Start the signer to ping peers and update their status in real-time.
-              </Text>
+          {peers.length === 0 ? (
+            <Card>
+              <View className="py-8 items-center">
+                <Users size={32} color="#9ca3af" strokeWidth={1.5} />
+                <Text className="text-gray-400 mt-2">
+                  No peers found
+                </Text>
+                <Text className="text-sm text-gray-500 mt-1">
+                  Add credentials to see your signing group
+                </Text>
+              </View>
+            </Card>
+          ) : (
+            <View className="space-y-3">
+              {peers.map((peer) => (
+                <PeerCard
+                  key={peer.pubkey}
+                  peer={peer}
+                  isSignerRunning={isRunning}
+                  isPinging={pingingPeers.has(peer.pubkey)}
+                  onPing={() => handlePingSinglePeer(peer.pubkey)}
+                  onUpdatePolicy={(policy) => setPeerPolicy(peer.pubkey, policy)}
+                />
+              ))}
             </View>
-          </Card>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          )}
+
+          {/* Info Card */}
+          {!isRunning && peers.length > 0 && (
+            <Card className="mt-4 bg-yellow-900/20">
+              <View className="flex-row items-start">
+                <Info size={16} color="#eab308" strokeWidth={2} />
+                <Text className="flex-1 ml-2 text-sm text-yellow-400">
+                  Start the signer to ping peers and update their status in real-time.
+                </Text>
+              </View>
+            </Card>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 function PeerCard({
   peer,
   isSignerRunning,
-  onCopyPubkey,
+  isPinging,
+  onPing,
   onUpdatePolicy,
 }: {
   peer: Peer;
   isSignerRunning: boolean;
-  onCopyPubkey: (pubkey: string) => void;
+  isPinging: boolean;
+  onPing: () => void;
   onUpdatePolicy: (policy: { allowSend?: boolean; allowReceive?: boolean }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { copied, copy } = useCopyFeedback();
+
+  const handleCopyPubkey = useCallback(async () => {
+    await copy(peer.pubkey);
+  }, [copy, peer.pubkey]);
 
   const getStatusBadge = () => {
     if (!isSignerRunning) return null;
@@ -201,6 +290,18 @@ function PeerCard({
     }
   };
 
+  // Get peer status icon color
+  const getStatusColor = () => {
+    switch (peer.status) {
+      case 'online':
+        return '#22c55e'; // green-500
+      case 'offline':
+        return '#ef4444'; // red-500
+      default:
+        return '#9ca3af'; // gray-400
+    }
+  };
+
   return (
     <Card padding="none">
       {/* Main Row */}
@@ -208,60 +309,97 @@ function PeerCard({
         className="flex-row items-center p-4"
         onPress={() => setExpanded(!expanded)}
       >
+        {/* Status Avatar */}
         <View
           className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
             peer.status === 'online'
-              ? 'bg-green-100 dark:bg-green-900/30'
+              ? 'bg-green-900/30'
               : peer.status === 'offline'
-                ? 'bg-red-100 dark:bg-red-900/30'
-                : 'bg-gray-100 dark:bg-gray-800'
+                ? 'bg-red-900/30'
+                : 'bg-gray-800'
           }`}
         >
-          <FontAwesome
-            name="user"
-            size={18}
-            color={
-              peer.status === 'online'
-                ? '#22c55e'
-                : peer.status === 'offline'
-                  ? '#ef4444'
-                  : '#9ca3af'
-            }
-          />
+          <User size={18} color={getStatusColor()} strokeWidth={2} />
         </View>
+
+        {/* Peer Info */}
         <View className="flex-1">
-          <Pressable onPress={() => onCopyPubkey(peer.pubkey)}>
-            <Text className="text-sm font-mono text-gray-900 dark:text-white">
-              {truncatePubkey(peer.pubkey)}
+          {peer.displayName && (
+            <Text className="text-sm font-medium text-gray-100 mb-0.5">
+              {peer.displayName}
             </Text>
+          )}
+          <Pressable onPress={(e) => { e.stopPropagation(); handleCopyPubkey(); }}>
+            <View className="flex-row items-center">
+              <Text className={`text-sm font-mono ${peer.displayName ? 'text-gray-400' : 'text-gray-100'}`}>
+                {truncatePubkey(peer.pubkey)}
+              </Text>
+              {copied ? (
+                <Check size={12} color="#4ade80" strokeWidth={2} style={{marginLeft: 4}} />
+              ) : (
+                <Copy size={12} color="#9ca3af" strokeWidth={2} style={{marginLeft: 4}} />
+              )}
+            </View>
           </Pressable>
-          <View className="flex-row items-center mt-1">
+          <View className="flex-row items-center mt-1 flex-wrap gap-1">
             {getStatusBadge()}
             {peer.latency !== null && peer.status === 'online' && (
-              <Text className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                {peer.latency}ms
-              </Text>
+              <View className="flex-row items-center">
+                <Radio size={10} color="#9ca3af" strokeWidth={2} />
+                <Text className="text-xs text-gray-400 ml-1">
+                  {peer.latency}ms
+                </Text>
+              </View>
             )}
             {peer.lastSeen && (
-              <Text className="text-xs text-gray-400 ml-2">
+              <Text className="text-xs text-gray-400">
                 {formatLastSeen(peer.lastSeen)}
               </Text>
             )}
           </View>
         </View>
-        <FontAwesome
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={14}
-          color="#9ca3af"
-        />
+
+        {/* Actions */}
+        <View className="flex-row items-center gap-1">
+          {/* Per-Peer Ping Button */}
+          {isSignerRunning && (
+            <IconButton
+              icon={<Radio size={14} color="#9ca3af" strokeWidth={2} />}
+              variant="ghost"
+              size="sm"
+              onPress={(e) => {
+                e.stopPropagation();
+                onPing();
+              }}
+              loading={isPinging}
+            />
+          )}
+          {/* Expand indicator with policy icon */}
+          {expanded && (
+            <SlidersHorizontal size={14} color="#60a5fa" strokeWidth={2} />
+          )}
+          {expanded ? (
+            <ChevronUp size={14} color="#9ca3af" strokeWidth={2} />
+          ) : (
+            <ChevronDown size={14} color="#9ca3af" strokeWidth={2} />
+          )}
+        </View>
       </Pressable>
 
       {/* Expanded Section - Policies */}
       {expanded && (
-        <View className="px-4 pb-4 pt-2 border-t border-gray-100 dark:border-gray-700">
-          <Text className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
-            Policy Settings
-          </Text>
+        <View className="px-4 pb-4 pt-2 border-t border-gray-700/30">
+          <View className="flex-row items-center gap-1 mb-3">
+            <SlidersHorizontal size={12} color="#9ca3af" strokeWidth={2} />
+            <Text className="text-xs font-medium text-gray-400">
+              Policy Settings
+            </Text>
+            <HelpTooltip
+              title="Policy Settings"
+              content="Control which signing requests this peer can send to you and receive from you. Policies persist across sessions."
+              size={12}
+            />
+          </View>
           <View className="space-y-3">
             <Switch
               label="Allow Send"
@@ -298,4 +436,11 @@ function formatLastSeen(lastSeen: string): string {
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
   return date.toLocaleDateString();
+}
+
+function getAveragePing(peers: Peer[]): number | null {
+  const onlinePeers = peers.filter(p => p.status === 'online' && p.latency !== null);
+  if (onlinePeers.length === 0) return null;
+  const totalLatency = onlinePeers.reduce((sum, p) => sum + (p.latency || 0), 0);
+  return Math.round(totalLatency / onlinePeers.length);
 }

@@ -5,13 +5,13 @@ export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <View className="flex-1 bg-white dark:bg-gray-900 items-center justify-center p-5">
-        <Text className="text-xl font-bold text-gray-900 dark:text-white">
+      <View className="flex-1 bg-gray-950 items-center justify-center p-5">
+        <Text className="text-xl font-bold text-gray-100">
           This screen doesn't exist.
         </Text>
 
-        <Link href="/signer" className="mt-4 py-4">
-          <Text className="text-sm text-frost-500 dark:text-frost-400">
+        <Link href="/(tabs)/signer" className="mt-4 py-4">
+          <Text className="text-sm text-blue-400">
             Go to home screen!
           </Text>
         </Link>

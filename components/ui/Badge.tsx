@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
+type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple' | 'orange';
 type BadgeSize = 'sm' | 'md';
 
 interface BadgeProps {
@@ -11,42 +11,61 @@ interface BadgeProps {
   className?: string;
 }
 
-const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string }> = {
+// Ring-inset style with 20% opacity backgrounds (dark-only, matches igloo design system)
+// Includes purple (for ecdh events) and orange (for sign events) to match desktop
+const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string; ring: string }> = {
   default: {
-    bg: 'bg-gray-100 dark:bg-gray-700',
-    text: 'text-gray-700 dark:text-gray-300',
+    bg: 'bg-gray-500/20',
+    text: 'text-gray-400',
     dot: 'bg-gray-500',
+    ring: 'border border-gray-500/30',
   },
   success: {
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-400',
+    bg: 'bg-green-500/20',
+    text: 'text-green-400',
     dot: 'bg-green-500',
+    ring: 'border border-green-500/30',
   },
   warning: {
-    bg: 'bg-yellow-100 dark:bg-yellow-900/30',
-    text: 'text-yellow-700 dark:text-yellow-400',
+    bg: 'bg-yellow-500/20',
+    text: 'text-yellow-400',
     dot: 'bg-yellow-500',
+    ring: 'border border-yellow-500/30',
   },
   error: {
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    text: 'text-red-700 dark:text-red-400',
+    bg: 'bg-red-500/20',
+    text: 'text-red-400',
     dot: 'bg-red-500',
+    ring: 'border border-red-500/30',
   },
   info: {
-    bg: 'bg-frost-100 dark:bg-frost-900/30',
-    text: 'text-frost-700 dark:text-frost-400',
-    dot: 'bg-frost-500',
+    bg: 'bg-blue-500/20',
+    text: 'text-blue-400',
+    dot: 'bg-blue-500',
+    ring: 'border border-blue-500/30',
+  },
+  purple: {
+    bg: 'bg-purple-500/20',
+    text: 'text-purple-400',
+    dot: 'bg-purple-500',
+    ring: 'border border-purple-500/30',
+  },
+  orange: {
+    bg: 'bg-orange-500/20',
+    text: 'text-orange-400',
+    dot: 'bg-orange-500',
+    ring: 'border border-orange-500/30',
   },
 };
 
 const sizeStyles: Record<BadgeSize, { container: string; text: string; dot: string }> = {
   sm: {
-    container: 'px-2 py-0.5 rounded',
+    container: 'px-2 py-0.5 rounded-full',
     text: 'text-xs',
     dot: 'w-1.5 h-1.5',
   },
   md: {
-    container: 'px-2.5 py-1 rounded-md',
+    container: 'px-2.5 py-0.5 rounded-full',
     text: 'text-sm',
     dot: 'w-2 h-2',
   },
@@ -62,6 +81,7 @@ export function Badge({ label, variant = 'default', size = 'md', dot = false, cl
         flex-row items-center
         ${sizeStyle.container}
         ${variantStyle.bg}
+        ${variantStyle.ring}
         ${className || ''}
       `}
     >

@@ -112,6 +112,10 @@ export function useIgloo() {
     return iglooService.pingAllPeers(timeout);
   }, []);
 
+  const pingSinglePeer = useCallback((pubkey: string, timeout?: number) => {
+    return iglooService.pingSinglePeer(pubkey, timeout);
+  }, []);
+
   const sendEcho = useCallback(
     (challenge: string, relays: string[], group?: string, share?: string) => {
       return iglooService.sendEchoSignal(challenge, relays, group, share);
@@ -127,6 +131,18 @@ export function useIgloo() {
     return iglooService.isRunning();
   }, []);
 
+  const decodeGroupCredential = useCallback((group: string) => {
+    return iglooService.decodeGroupCredential(group);
+  }, []);
+
+  const decodeShareCredential = useCallback((share: string) => {
+    return iglooService.decodeShareCredential(share);
+  }, []);
+
+  const getLoadedCredentials = useCallback(() => {
+    return iglooService.getLoadedCredentials();
+  }, []);
+
   return {
     // Methods
     startSigner,
@@ -136,8 +152,12 @@ export function useIgloo() {
     getPeers,
     getSelfPubkey,
     pingAllPeers,
+    pingSinglePeer,
     sendEcho,
     updatePolicies,
     isRunning,
+    decodeGroupCredential,
+    decodeShareCredential,
+    getLoadedCredentials,
   };
 }

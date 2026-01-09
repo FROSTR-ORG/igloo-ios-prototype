@@ -1,6 +1,6 @@
 import { Badge, Button } from '@/components/ui';
 import { useCredentials } from '@/hooks';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { Camera, ArrowLeft, Check, Users, Key } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -176,26 +176,26 @@ export default function OnboardingScan() {
 
   if (!permission) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-900 items-center justify-center">
-        <Text className="text-white">Requesting camera permission...</Text>
+      <SafeAreaView className="flex-1 bg-gray-950 items-center justify-center">
+        <Text className="text-gray-100">Requesting camera permission...</Text>
       </SafeAreaView>
     );
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-gray-900">
+      <SafeAreaView className="flex-1 bg-gray-950">
         <View className="flex-1 px-6 items-center justify-center">
-          <FontAwesome name="camera" size={48} color="#9ca3af" />
-          <Text className="text-lg font-semibold text-gray-900 dark:text-white mt-4 mb-2">
+          <Camera size={48} color="#9ca3af" strokeWidth={1.5} />
+          <Text className="text-lg font-semibold text-gray-100 mt-4 mb-2">
             Camera Access Required
           </Text>
-          <Text className="text-base text-gray-600 dark:text-gray-400 text-center mb-6">
+          <Text className="text-base text-gray-400 text-center mb-6">
             We need camera access to scan QR codes containing your credentials.
           </Text>
           <Button title="Grant Permission" onPress={requestPermission} />
           <Pressable onPress={() => router.back()} className="mt-4 py-2">
-            <Text className="text-frost-600 dark:text-frost-400">Go Back</Text>
+            <Text className="text-blue-400">Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -220,7 +220,7 @@ export default function OnboardingScan() {
             onPress={() => router.back()}
             className="w-10 h-10 bg-black/50 rounded-full items-center justify-center"
           >
-            <FontAwesome name="arrow-left" size={18} color="white" />
+            <ArrowLeft size={18} color="white" strokeWidth={2} />
           </Pressable>
           <Badge
             label={scanStep === 'share' ? 'Step 2/2' : 'Step 1/2'}
@@ -255,7 +255,7 @@ export default function OnboardingScan() {
         >
           <View className="items-center px-8">
             <View className="w-20 h-20 rounded-full bg-green-500 items-center justify-center mb-6">
-              <FontAwesome name="check" size={40} color="white" />
+              <Check size={40} color="white" strokeWidth={2} />
             </View>
             <Text className="text-2xl font-bold text-white text-center mb-2">
               Group Credential Captured!
@@ -273,7 +273,7 @@ export default function OnboardingScan() {
         <View className="items-center">
           {scanStep === 'group' ? (
             <>
-              <FontAwesome name="users" size={24} color="#0284c7" />
+              <Users size={24} color="#60a5fa" strokeWidth={2} />
               <Text className="text-xl font-semibold text-white mt-2">
                 Scan Group Credential
               </Text>
@@ -283,7 +283,7 @@ export default function OnboardingScan() {
             </>
           ) : (
             <>
-              <FontAwesome name="key" size={24} color="#0284c7" />
+              <Key size={24} color="#60a5fa" strokeWidth={2} />
               <Text className="text-xl font-semibold text-white mt-2">
                 Scan Share Credential
               </Text>
@@ -315,7 +315,7 @@ export default function OnboardingScan() {
           onPress={() => router.push('/onboarding/manual')}
           className="mt-6 py-2"
         >
-          <Text className="text-frost-400 text-center">
+          <Text className="text-blue-400 text-center">
             Having trouble? Enter manually
           </Text>
         </Pressable>

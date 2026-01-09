@@ -8,7 +8,7 @@ import type { Peer, PeerPolicy } from '@/types';
  * Hook for peer management and monitoring.
  */
 export function usePeers() {
-  const { getPeers, getSelfPubkey, pingAllPeers, updatePolicies, isRunning } = useIgloo();
+  const { getPeers, getSelfPubkey, pingAllPeers, pingSinglePeer, updatePolicies, isRunning } = useIgloo();
 
   // Peer state
   const peersRecord = usePeerStore((s) => s.peers);
@@ -95,6 +95,23 @@ export function usePeers() {
   );
 
   /**
+   * Ping a single peer and update their status.
+   */
+  const pingPeer = useCallback(
+    async (pubkey: string, timeout?: number) => {
+      if (!isRunning()) {
+        throw new Error('Signer must be running to ping peer');
+      }
+
+      const result = await pingSinglePeer(pubkey, timeout);
+      setLastPingTime(new Date());
+
+      return result;
+    },
+    [isRunning, pingSinglePeer, setLastPingTime]
+  );
+
+  /**
    * Update policy for a specific peer.
    */
   const setPeerPolicy = useCallback(
@@ -154,6 +171,7 @@ export function usePeers() {
     // Actions
     loadPeers,
     pingPeers,
+    pingPeer,
     setPeerPolicy,
     syncPoliciesToNode,
     clearPeers,

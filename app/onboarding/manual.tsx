@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Alert, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { ArrowLeft, Info, ClipboardPaste } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Button, Input, Card } from '@/components/ui';
@@ -109,20 +109,20 @@ export default function OnboardingManual() {
   const canSubmit = shareCredential.trim() && groupCredential.trim() && !isLoading;
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-gray-900">
+    <SafeAreaView className="flex-1 bg-gray-950">
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <View className="flex-row items-center px-4 py-3 border-b border-blue-900/30">
           <Pressable
             onPress={() => router.back()}
             className="w-10 h-10 items-center justify-center -ml-2"
           >
-            <FontAwesome name="arrow-left" size={18} color="#6b7280" />
+            <ArrowLeft size={18} color="#9ca3af" strokeWidth={2} />
           </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-gray-900 dark:text-white text-center mr-10">
+          <Text className="flex-1 text-lg font-semibold text-gray-100 text-center mr-10">
             Enter Credentials
           </Text>
         </View>
@@ -133,10 +133,10 @@ export default function OnboardingManual() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Info Card */}
-          <Card variant="outlined" className="mb-6 bg-frost-50 dark:bg-frost-900/20 border-frost-200 dark:border-frost-800">
+          <Card variant="outlined" className="mb-6 bg-blue-900/20 border-blue-800">
             <View className="flex-row items-start">
-              <FontAwesome name="info-circle" size={18} color="#0284c7" />
-              <Text className="flex-1 ml-3 text-sm text-frost-700 dark:text-frost-300">
+              <Info size={18} color="#60a5fa" strokeWidth={2} />
+              <Text className="flex-1 ml-3 text-sm text-blue-300">
                 Enter your share and group credentials exactly as they were provided to you.
                 These typically start with "bfshare" and "bfgroup".
               </Text>
@@ -146,15 +146,15 @@ export default function OnboardingManual() {
           {/* Share Input */}
           <View className="mb-4">
             <View className="flex-row items-center justify-between mb-1.5">
-              <Text className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Text className="text-sm font-medium text-gray-300">
                 Share Credential
               </Text>
               <Pressable
                 onPress={() => handlePaste('share')}
                 className="flex-row items-center px-2 py-1"
               >
-                <FontAwesome name="clipboard" size={14} color="#0284c7" />
-                <Text className="text-frost-600 dark:text-frost-400 text-sm ml-1">Paste</Text>
+                <ClipboardPaste size={14} color="#60a5fa" strokeWidth={2} />
+                <Text className="text-blue-400 text-sm ml-1">Paste</Text>
               </Pressable>
             </View>
             <Input
@@ -175,15 +175,15 @@ export default function OnboardingManual() {
           {/* Group Input */}
           <View className="mb-6">
             <View className="flex-row items-center justify-between mb-1.5">
-              <Text className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Text className="text-sm font-medium text-gray-300">
                 Group Credential
               </Text>
               <Pressable
                 onPress={() => handlePaste('group')}
                 className="flex-row items-center px-2 py-1"
               >
-                <FontAwesome name="clipboard" size={14} color="#0284c7" />
-                <Text className="text-frost-600 dark:text-frost-400 text-sm ml-1">Paste</Text>
+                <ClipboardPaste size={14} color="#60a5fa" strokeWidth={2} />
+                <Text className="text-blue-400 text-sm ml-1">Paste</Text>
               </Pressable>
             </View>
             <Input
@@ -215,7 +215,7 @@ export default function OnboardingManual() {
             onPress={() => router.push('/onboarding/scan')}
             className="mt-4 py-2"
           >
-            <Text className="text-frost-600 dark:text-frost-400 text-center">
+            <Text className="text-blue-400 text-center">
               Prefer to scan? Use QR code
             </Text>
           </Pressable>

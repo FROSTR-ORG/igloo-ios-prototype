@@ -1,52 +1,57 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
+import { Key, Users, List, Settings } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={22} style={{ marginBottom: -3 }} {...props} />;
-}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: Colors.tabIconSelected,
+        tabBarInactiveTintColor: Colors.tabIconDefault,
+        tabBarStyle: {
+          backgroundColor: Colors.tabBackground,
+          borderTopColor: Colors.border,
+        },
+        headerStyle: {
+          backgroundColor: Colors.backgroundSecondary,
+        },
+        headerTintColor: Colors.text,
         headerShown: true,
       }}
     >
       <Tabs.Screen
+        name="index"
+        options={{
+          href: null, // Hide from tab bar - only used for redirect
+        }}
+      />
+      <Tabs.Screen
         name="signer"
         options={{
           title: 'Signer',
-          tabBarIcon: ({ color }) => <TabBarIcon name="key" color={color} />,
+          tabBarIcon: ({ color }) => <Key size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
         name="sessions"
         options={{
           title: 'Peers',
-          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+          tabBarIcon: ({ color }) => <Users size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
         name="logs"
         options={{
           title: 'Logs',
-          tabBarIcon: ({ color }) => <TabBarIcon name="list-alt" color={color} />,
+          tabBarIcon: ({ color }) => <List size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          tabBarIcon: ({ color }) => <Settings size={22} color={color} strokeWidth={2} />,
         }}
       />
     </Tabs>

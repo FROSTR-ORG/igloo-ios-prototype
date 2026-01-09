@@ -1,14 +1,15 @@
 import { View, type ViewProps } from 'react-native';
 
 interface CardProps extends ViewProps {
-  variant?: 'default' | 'outlined' | 'elevated';
+  variant?: 'default' | 'outlined' | 'elevated' | 'glass';
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
 const variantStyles: Record<string, string> = {
-  default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
-  outlined: 'bg-transparent border-2 border-gray-300 dark:border-gray-600',
-  elevated: 'bg-white dark:bg-gray-800 shadow-lg shadow-black/10',
+  default: 'bg-gray-800/50 border border-gray-700/50 shadow-lg',
+  outlined: 'bg-transparent border-2 border-gray-700/50',
+  elevated: 'bg-gray-800/60 border border-gray-700/50 shadow-lg',
+  glass: 'bg-gray-800/40 border border-gray-700/50 shadow-lg',
 };
 
 const paddingStyles: Record<string, string> = {
@@ -28,7 +29,7 @@ export function Card({
   return (
     <View
       className={`
-        rounded-xl
+        rounded-lg
         ${variantStyles[variant]}
         ${paddingStyles[padding]}
         ${className || ''}

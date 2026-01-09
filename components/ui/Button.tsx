@@ -6,7 +6,7 @@ import {
   type TouchableOpacityProps,
 } from 'react-native';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'success';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends TouchableOpacityProps {
@@ -19,20 +19,28 @@ interface ButtonProps extends TouchableOpacityProps {
 
 const variantStyles: Record<ButtonVariant, { container: string; text: string }> = {
   primary: {
-    container: 'bg-frost-600 active:bg-frost-700',
-    text: 'text-white',
+    container: 'bg-blue-600 active:bg-blue-700',
+    text: 'text-blue-100',
   },
   secondary: {
-    container: 'bg-gray-200 dark:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600',
-    text: 'text-gray-900 dark:text-gray-100',
+    container: 'bg-gray-700 active:bg-gray-600',
+    text: 'text-gray-100',
   },
   danger: {
     container: 'bg-red-600 active:bg-red-700',
     text: 'text-white',
   },
   ghost: {
-    container: 'bg-transparent active:bg-gray-100 dark:active:bg-gray-800',
-    text: 'text-frost-600 dark:text-frost-400',
+    container: 'bg-transparent active:bg-gray-800',
+    text: 'text-blue-400',
+  },
+  outline: {
+    container: 'bg-transparent border border-blue-600 active:bg-blue-900/30',
+    text: 'text-blue-400',
+  },
+  success: {
+    container: 'bg-green-600 active:bg-green-700',
+    text: 'text-green-100',
   },
 };
 
@@ -80,7 +88,8 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' || variant === 'danger' ? 'white' : '#0284c7'}
+          // Hex colors required by RN - mapped from Tailwind
+          color={variant === 'primary' || variant === 'danger' || variant === 'success' ? '#ffffff' : '#60a5fa'} // white : blue-400
           size="small"
         />
       ) : (

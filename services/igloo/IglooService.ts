@@ -11,6 +11,7 @@ import {
   setNodePolicies,
   decodeGroup,
   decodeShare,
+  normalizePubkey,
 } from '@frostr/igloo-core';
 import type { BifrostNode } from '@frostr/bifrost';
 import type { NodeEventConfig, PingResult as IglooPingResult } from '@frostr/igloo-core';
@@ -302,7 +303,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 
     try {
       // Try igloo-core function first
-      const peers = extractPeersFromCredentials(group, share);
+      const peers = extractPeersFromCredentials(group, share).map(normalizePeerPubkey);
       if (peers.length > 0) {
         this.log('debug', 'peer', `Extracted ${peers.length} peers via igloo-core`, {
           peers: peers.map((p) => truncatePubkey(p)),
@@ -340,14 +341,14 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     // Find self pubkey by matching share index
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selfCommit = decodedGroup.commits?.find((c: any) => c.idx === decodedShare.idx);
-    const selfPubkey = selfCommit?.pubkey;
+    const selfPubkey = selfCommit?.pubkey ? normalizePeerPubkey(selfCommit.pubkey) : undefined;
 
     // Extract all peer pubkeys, excluding self
     const peers = (decodedGroup.commits ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((commit: any) => commit.pubkey !== selfPubkey)
+      .filter((commit: any) => normalizePeerPubkey(commit.pubkey) !== selfPubkey)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((commit: any) => commit.pubkey);
+      .map((commit: any) => normalizePeerPubkey(commit.pubkey));
 
     this.log('debug', 'peer', 'Manual peer extraction', {
       totalCommits: decodedGroup.commits?.length,
@@ -356,7 +357,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       peerCount: peers.length,
     });
 
-    return peers;
+    return Array.from(new Set(peers));
   }
 
   /**
@@ -377,7 +378,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       // Find our commit by matching share index
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const selfCommit = decodedGroup.commits?.find((c: any) => c.idx === decodedShare.idx);
-      const pubkey = selfCommit?.pubkey || null;
+      const pubkey = selfCommit?.pubkey ? normalizePeerPubkey(selfCommit.pubkey) : null;
 
       this.log('debug', 'peer', 'Extracted self pubkey', {
         shareIdx: decodedShare.idx,
@@ -401,7 +402,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       throw new Error('Signer not running');
     }
 
-    const peers = this.getPeers();
+    const peers = this.getPeers().map(normalizePeerPubkey);
     if (peers.length === 0) {
       this.log('warn', 'peer', 'No peers to ping');
       return [];
@@ -414,9 +415,10 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 
       // Convert igloo-core PingResult to local PingResult type and emit status updates
       const results: PingResult[] = iglooResults.map((result: IglooPingResult) => {
+        const normalizedPubkey = normalizePeerPubkey(result.pubkey);
         const status: PeerStatus = result.success ? 'online' : 'offline';
-        this.emit('peer:status', result.pubkey, status, result.latency);
-        this.log('info', 'peer', `Ping ${truncatePubkey(result.pubkey)}`, {
+        this.emit('peer:status', normalizedPubkey, status, result.latency);
+        this.log('info', 'peer', `Ping ${truncatePubkey(normalizedPubkey)}`, {
           success: result.success,
           latency: result.latency,
           error: result.error,
@@ -424,7 +426,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 
         return {
           success: result.success,
-          pubkey: result.pubkey,
+          pubkey: normalizedPubkey,
           latency: result.latency,
           policy: result.policy,
           error: result.error,
@@ -435,6 +437,58 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       return results;
     } catch (error) {
       this.log('error', 'peer', 'Ping operation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Ping a single peer and return the result.
+   */
+  async pingSinglePeer(pubkey: string, timeout = 5000): Promise<PingResult> {
+    if (!this.node) {
+      throw new Error('Signer not running');
+    }
+
+    const normalizedPubkey = normalizePeerPubkey(pubkey);
+    this.log('info', 'peer', `Pinging peer ${truncatePubkey(normalizedPubkey)}...`);
+
+    try {
+      const iglooResults = await pingPeersAdvanced(this.node, [normalizedPubkey], { timeout });
+
+      if (iglooResults.length === 0) {
+        const errorResult: PingResult = {
+          success: false,
+          pubkey: normalizedPubkey,
+          error: 'No response',
+          timestamp: new Date(),
+        };
+        this.emit('peer:status', normalizedPubkey, 'offline');
+        return errorResult;
+      }
+
+      const result = iglooResults[0];
+      const resultPubkey = normalizePeerPubkey(result.pubkey);
+      const status: PeerStatus = result.success ? 'online' : 'offline';
+      this.emit('peer:status', resultPubkey, status, result.latency);
+
+      this.log('info', 'peer', `Ping result ${truncatePubkey(resultPubkey)}`, {
+        success: result.success,
+        latency: result.latency,
+        error: result.error,
+      });
+
+      return {
+        success: result.success,
+        pubkey: resultPubkey,
+        latency: result.latency,
+        policy: result.policy,
+        error: result.error,
+        timestamp: result.timestamp,
+      };
+    } catch (error) {
+      this.log('error', 'peer', `Ping failed for ${truncatePubkey(normalizedPubkey)}`, {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
@@ -489,7 +543,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       await setNodePolicies(
         this.node,
         policies.map((p) => ({
-          pubkey: p.pubkey,
+          pubkey: normalizePeerPubkey(p.pubkey),
           allowSend: p.allowSend,
           allowReceive: p.allowReceive,
           label: p.label,
@@ -692,6 +746,46 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   }
 
   /**
+   * Decode a group credential to get its raw data.
+   * Returns the decoded group object or null on error.
+   */
+  decodeGroupCredential(group: string): object | null {
+    try {
+      return decodeGroup(group);
+    } catch (error) {
+      this.log('error', 'system', 'Failed to decode group credential', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Decode a share credential to get its raw data.
+   * Returns the decoded share object or null on error.
+   */
+  decodeShareCredential(share: string): object | null {
+    try {
+      return decodeShare(share);
+    } catch (error) {
+      this.log('error', 'system', 'Failed to decode share credential', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get the currently loaded credentials (if signer has started).
+   */
+  getLoadedCredentials(): { group: string | null; share: string | null } {
+    return {
+      group: this.groupCredential,
+      share: this.shareCredential,
+    };
+  }
+
+  /**
    * Internal logging helper that emits to event listeners.
    */
   private log(
@@ -714,6 +808,11 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 function truncatePubkey(pubkey: string): string {
   if (pubkey.length <= 16) return pubkey;
   return `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
+}
+
+function normalizePeerPubkey(pubkey: string): string {
+  if (!pubkey) return pubkey;
+  return normalizePubkey(pubkey).toLowerCase();
 }
 
 function generateRequestId(): string {
