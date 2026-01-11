@@ -16,6 +16,8 @@ public class BackgroundAudioModule: Module {
   private var audioPlayer: AVAudioPlayer?
   private var audioDelegate = AudioPlayerDelegate()
   private var playing: Bool = false
+  private var interruptionObserver: NSObjectProtocol?
+  private var routeChangeObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {
     Name("BackgroundAudio")
@@ -46,8 +48,8 @@ public class BackgroundAudioModule: Module {
   }
 
   private func setupNotificationHandlers() {
-    // Audio interruption (phone calls, alarms, etc.)
-    NotificationCenter.default.addObserver(
+    // Store observer tokens for cleanup in deinit
+    interruptionObserver = NotificationCenter.default.addObserver(
       forName: AVAudioSession.interruptionNotification,
       object: nil,
       queue: .main
@@ -55,14 +57,18 @@ public class BackgroundAudioModule: Module {
       self?.handleInterruption(notification: notification)
     }
 
-    // Route changes (headphones plugged/unplugged, Bluetooth, etc.)
-    NotificationCenter.default.addObserver(
+    routeChangeObserver = NotificationCenter.default.addObserver(
       forName: AVAudioSession.routeChangeNotification,
       object: nil,
       queue: .main
     ) { [weak self] notification in
       self?.handleRouteChange(notification: notification)
     }
+  }
+
+  deinit {
+    if let observer = interruptionObserver { NotificationCenter.default.removeObserver(observer) }
+    if let observer = routeChangeObserver { NotificationCenter.default.removeObserver(observer) }
   }
 
   private func configureAndActivateAudioSession() throws {

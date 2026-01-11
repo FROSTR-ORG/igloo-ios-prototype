@@ -15,10 +15,13 @@ if (Platform.OS === 'ios') {
   try {
     BackgroundAudioModule = requireNativeModule<BackgroundAudioModuleType>('BackgroundAudio');
   } catch (error) {
-    console.warn(
-      '[BackgroundAudio] Native module not available. ' +
-      'This is expected in Expo Go. Use `npx expo run:ios` for a development build.'
-    );
+    if (__DEV__) {
+      console.warn(
+        '[BackgroundAudio] Native module not available. ' +
+        'This is expected in Expo Go. Use `npx expo run:ios` for a development build.',
+        error
+      );
+    }
   }
 }
 
