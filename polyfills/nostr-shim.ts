@@ -18,9 +18,9 @@ const PATCH_FLAG = '__iglooSubscribeFixApplied';
 
 /**
  * Apply the SimplePool subscription fix.
- * Call this early in app initialization, before any relay connections.
+ * This is called automatically when the module is imported.
  */
-export function applyNostrShim(): void {
+function applyNostrShim(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const proto = SimplePool.prototype as any;
 

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import EventEmitter from 'eventemitter3';
 import {
   createConnectedNode,
@@ -31,6 +32,11 @@ import type {
 } from '@/types';
 import type { StartSignerOptions } from './types';
 import { audioService } from '@/services/audio';
+
+// Background audio soundscape is iOS-only because:
+// 1. iOS requires audio playback for background execution
+// 2. Android uses different background execution mechanisms (foreground services)
+const ENABLE_BACKGROUND_AUDIO = Platform.OS === 'ios';
 
 /**
  * IglooService - Core service wrapping @frostr/igloo-core for React Native.
@@ -102,12 +108,14 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.emit('status:changed', 'running');
 
       // Start background audio to keep app alive in iOS background mode
-      try {
-        await audioService.play();
-      } catch (error) {
-        this.log('warn', 'system', 'Failed to start background audio', {
-          error: error instanceof Error ? error.message : 'Unknown',
-        });
+      if (ENABLE_BACKGROUND_AUDIO) {
+        try {
+          await audioService.play();
+        } catch (error) {
+          this.log('warn', 'system', 'Failed to start background audio', {
+            error: error instanceof Error ? error.message : 'Unknown',
+          });
+        }
       }
 
       this.log('info', 'system', 'Signer node started successfully', {
@@ -162,7 +170,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.emit('status:changed', 'stopped');
 
       // Stop background audio (unless we're restarting)
-      if (!options.keepAudio) {
+      if (ENABLE_BACKGROUND_AUDIO && !options.keepAudio) {
         try {
           await audioService.stop();
         } catch (audioError) {
@@ -180,7 +188,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.emit('status:changed', 'stopped');
 
       // Also stop audio on error (unless we're restarting)
-      if (!options.keepAudio) {
+      if (ENABLE_BACKGROUND_AUDIO && !options.keepAudio) {
         try {
           await audioService.stop();
         } catch {

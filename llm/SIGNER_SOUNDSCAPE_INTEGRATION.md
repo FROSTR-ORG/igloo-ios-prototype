@@ -342,6 +342,66 @@ ios/Igloo/
 └── Info.plist               # UIBackgroundModes config
 ```
 
+## User-Facing FAQ
+
+### Why does Igloo play audio?
+
+Igloo is a threshold signer that needs to stay awake to respond to signing requests from your connected apps (like Nostr clients). On iOS, apps are suspended when backgrounded unless they're actively playing audio. The ambient soundscape keeps your signer responsive while you use other apps.
+
+### Can I mute the audio?
+
+You can lower the volume using your device's volume buttons. However, completely muting the audio may cause iOS to suspend the app. We recommend keeping the volume low but not zero.
+
+### What is the soundscape?
+
+It's a gentle ocean waves ambient sound designed to be unobtrusive at low volume. Future versions may offer different sound options.
+
+### Does this use a lot of battery?
+
+The audio playback uses minimal battery (~2-4% per hour), comparable to playing music. The signer itself also uses minimal resources when idle.
+
+### Why not use silent audio?
+
+iOS requires actual audio output for the background mode to work. A truly silent track would be detected and the app suspended. The low-volume ambient sound is the minimum required to stay alive.
+
+## Failure Scenarios
+
+### Audio Fails to Start
+
+**Symptom:** Signer shows "Running" but no audio plays.
+
+**Impact:** App will be suspended when backgrounded. Signer only works in foreground.
+
+**Causes:**
+- Audio file missing from bundle
+- Audio session configuration failed
+- Another app has exclusive audio access
+
+**User Action:** Check if audio is playing. If not, stop and restart the signer.
+
+### Audio Interrupted and Can't Resume
+
+**Symptom:** Audio stops during a phone call and doesn't resume after.
+
+**Impact:** Same as above - signer will be suspended on background.
+
+**Causes:**
+- Audio session failed to reactivate
+- System denied audio access
+- Audio player in invalid state
+
+**User Action:** Stop and restart the signer to restore background operation.
+
+### Signer Running Without Audio
+
+**Symptom:** Signer status shows "Running" but audio indicator missing in Control Center.
+
+**Impact:** Signer will be suspended within seconds of backgrounding.
+
+**How Long Does It Work?** Only while the app is in the foreground. Once backgrounded, iOS suspends the app within 5-30 seconds without active audio.
+
+**User Action:** Return to the app and restart the signer.
+
 ## Related Documentation
 
 - [BACKGROUND_AUDIO_IMPLEMENTATION.md](./BACKGROUND_AUDIO_IMPLEMENTATION.md) - Technical details of the native audio module

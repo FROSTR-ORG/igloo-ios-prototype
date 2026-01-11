@@ -1,14 +1,21 @@
 import ExpoModulesCore
 import AVFoundation
 
+// Debug logging helper - only prints in DEBUG builds
+private func debugLog(_ message: String) {
+  #if DEBUG
+  print("[BackgroundAudio] \(message)")
+  #endif
+}
+
 // Separate delegate class since Module can't inherit from NSObject
 private class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-    print("[BackgroundAudio] Delegate: finished playing, success: \(flag)")
+    debugLog("Delegate: finished playing, success: \(flag)")
   }
 
   func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-    print("[BackgroundAudio] Delegate: DECODE ERROR: \(error?.localizedDescription ?? "unknown")")
+    debugLog("Delegate: DECODE ERROR: \(error?.localizedDescription ?? "unknown")")
   }
 }
 
@@ -23,8 +30,13 @@ public class BackgroundAudioModule: Module {
     Name("BackgroundAudio")
 
     OnCreate {
-      print("[BackgroundAudio] Module created")
+      debugLog("Module created")
       self.setupNotificationHandlers()
+    }
+
+    OnDestroy {
+      debugLog("Module destroyed - cleaning up")
+      self.cleanupNotificationHandlers()
     }
 
     AsyncFunction("play") { () -> Bool in
@@ -43,7 +55,9 @@ public class BackgroundAudioModule: Module {
     }
 
     AsyncFunction("isPlaying") { () -> Bool in
-      return self.playing
+      return await MainActor.run {
+        return self.playing
+      }
     }
   }
 
@@ -67,49 +81,66 @@ public class BackgroundAudioModule: Module {
   }
 
   deinit {
-    if let observer = interruptionObserver { NotificationCenter.default.removeObserver(observer) }
-    if let observer = routeChangeObserver { NotificationCenter.default.removeObserver(observer) }
+    cleanupNotificationHandlers()
+  }
+
+  private func cleanupNotificationHandlers() {
+    if let observer = interruptionObserver {
+      NotificationCenter.default.removeObserver(observer)
+      interruptionObserver = nil
+    }
+    if let observer = routeChangeObserver {
+      NotificationCenter.default.removeObserver(observer)
+      routeChangeObserver = nil
+    }
   }
 
   private func configureAndActivateAudioSession() throws {
     let session = AVAudioSession.sharedInstance()
 
-    print("[BackgroundAudio] Current category: \(session.category.rawValue)")
-    print("[BackgroundAudio] Current mode: \(session.mode.rawValue)")
-    print("[BackgroundAudio] Is other audio playing: \(session.isOtherAudioPlaying)")
+    debugLog("Current category: \(session.category.rawValue)")
+    debugLog("Current mode: \(session.mode.rawValue)")
+    debugLog("Is other audio playing: \(session.isOtherAudioPlaying)")
 
     try session.setCategory(.playback, mode: .default, options: [])
     try session.setActive(true, options: [])
 
-    print("[BackgroundAudio] Audio session activated successfully")
-    print("[BackgroundAudio] Output routes: \(session.currentRoute.outputs.map { $0.portName })")
+    debugLog("Audio session activated successfully")
+    debugLog("Output routes: \(session.currentRoute.outputs.map { $0.portName })")
   }
 
   private func handleInterruption(notification: Notification) {
     guard let userInfo = notification.userInfo,
           let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
           let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-      print("[BackgroundAudio] Could not parse interruption notification")
+      debugLog("Could not parse interruption notification")
       return
     }
 
     switch type {
     case .began:
-      print("[BackgroundAudio] Interruption BEGAN")
+      debugLog("Interruption BEGAN")
     case .ended:
-      print("[BackgroundAudio] Interruption ENDED")
+      debugLog("Interruption ENDED")
       if playing {
-        print("[BackgroundAudio] Attempting to resume playback...")
+        debugLog("Attempting to resume playback...")
         do {
           try AVAudioSession.sharedInstance().setActive(true, options: [])
           let resumed = audioPlayer?.play() ?? false
-          print("[BackgroundAudio] Resume result: \(resumed)")
+          debugLog("Resume result: \(resumed)")
+          if !resumed {
+            // Player failed to resume - update state to reflect reality
+            debugLog("WARNING: Resume failed, updating playing state to false")
+            playing = false
+          }
         } catch {
-          print("[BackgroundAudio] Failed to resume: \(error)")
+          debugLog("Failed to resume audio session: \(error)")
+          // Audio session activation failed - playback cannot continue
+          playing = false
         }
       }
     @unknown default:
-      print("[BackgroundAudio] Unknown interruption type")
+      debugLog("Unknown interruption type")
     }
   }
 
@@ -120,47 +151,47 @@ public class BackgroundAudioModule: Module {
       return
     }
 
-    print("[BackgroundAudio] Route changed, reason: \(reason.rawValue)")
+    debugLog("Route changed, reason: \(reason.rawValue)")
     let session = AVAudioSession.sharedInstance()
-    print("[BackgroundAudio] New output routes: \(session.currentRoute.outputs.map { $0.portName })")
+    debugLog("New output routes: \(session.currentRoute.outputs.map { $0.portName })")
 
     // Resume playback if route changed but we should still be playing
     if playing && audioPlayer?.isPlaying == false {
-      print("[BackgroundAudio] Player stopped due to route change, resuming...")
+      debugLog("Player stopped due to route change, resuming...")
       audioPlayer?.play()
     }
   }
 
   @MainActor
   private func startPlayback() async throws -> Bool {
-    print("[BackgroundAudio] ========== START PLAYBACK ==========")
+    debugLog("========== START PLAYBACK ==========")
 
     if playing && audioPlayer?.isPlaying == true {
-      print("[BackgroundAudio] Already playing, skipping")
+      debugLog("Already playing, skipping")
       return true
     }
 
     // Step 1: Configure audio session
-    print("[BackgroundAudio] Step 1: Configuring audio session...")
+    debugLog("Step 1: Configuring audio session...")
     do {
       try configureAndActivateAudioSession()
     } catch {
-      print("[BackgroundAudio] FAILED to configure audio session: \(error)")
+      debugLog("FAILED to configure audio session: \(error)")
       throw error
     }
 
     // Step 2: Find audio file
-    print("[BackgroundAudio] Step 2: Looking for audio file...")
+    debugLog("Step 2: Looking for audio file...")
     guard let audioPath = Bundle.main.path(forResource: "hum", ofType: "wav") else {
-      print("[BackgroundAudio] FAILED: Audio file 'hum.wav' not found in bundle!")
-      print("[BackgroundAudio] Bundle path: \(Bundle.main.bundlePath)")
+      debugLog("FAILED: Audio file 'hum.wav' not found in bundle!")
+      debugLog("Bundle path: \(Bundle.main.bundlePath)")
       throw NSError(domain: "BackgroundAudio", code: 1,
                     userInfo: [NSLocalizedDescriptionKey: "Audio file not found"])
     }
-    print("[BackgroundAudio] Found audio file at: \(audioPath)")
+    debugLog("Found audio file at: \(audioPath)")
 
     // Step 3: Create player
-    print("[BackgroundAudio] Step 3: Creating AVAudioPlayer...")
+    debugLog("Step 3: Creating AVAudioPlayer...")
     do {
       let audioURL = URL(fileURLWithPath: audioPath)
       audioPlayer = try AVAudioPlayer(contentsOf: audioURL)
@@ -168,44 +199,54 @@ public class BackgroundAudioModule: Module {
       audioPlayer?.numberOfLoops = -1
       audioPlayer?.volume = 0.3
 
-      print("[BackgroundAudio] Player created successfully")
-      print("[BackgroundAudio] - Duration: \(audioPlayer?.duration ?? 0) seconds")
-      print("[BackgroundAudio] - Channels: \(audioPlayer?.numberOfChannels ?? 0)")
+      debugLog("Player created successfully")
+      debugLog("- Duration: \(audioPlayer?.duration ?? 0) seconds")
+      debugLog("- Channels: \(audioPlayer?.numberOfChannels ?? 0)")
     } catch {
-      print("[BackgroundAudio] FAILED to create player: \(error)")
+      debugLog("FAILED to create player: \(error)")
       throw error
     }
 
     // Step 4: Prepare to play
-    print("[BackgroundAudio] Step 4: Preparing to play...")
+    debugLog("Step 4: Preparing to play...")
     let prepared = audioPlayer?.prepareToPlay() ?? false
-    print("[BackgroundAudio] Prepare result: \(prepared)")
+    debugLog("Prepare result: \(prepared)")
 
     // Step 5: Start playback
-    print("[BackgroundAudio] Step 5: Starting playback...")
+    debugLog("Step 5: Starting playback...")
     let playResult = audioPlayer?.play() ?? false
-    print("[BackgroundAudio] Play result: \(playResult)")
+    debugLog("Play result: \(playResult)")
 
     if playResult {
       playing = true
-      print("[BackgroundAudio] Playback started successfully!")
+      debugLog("Playback started successfully!")
     } else {
-      print("[BackgroundAudio] play() returned false - playback FAILED")
+      debugLog("play() returned false - playback FAILED")
       throw NSError(domain: "BackgroundAudio", code: 2,
                     userInfo: [NSLocalizedDescriptionKey: "play() returned false"])
     }
 
-    print("[BackgroundAudio] ========== END START PLAYBACK ==========")
+    debugLog("========== END START PLAYBACK ==========")
     return true
   }
 
   @MainActor
   private func stopPlayback() async -> Bool {
-    print("[BackgroundAudio] Stopping playback...")
+    debugLog("Stopping playback...")
     audioPlayer?.stop()
     audioPlayer = nil
     playing = false
-    print("[BackgroundAudio] Playback stopped")
+
+    // Deactivate audio session so other apps (Music, Spotify) can resume
+    do {
+      try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+      debugLog("Audio session deactivated")
+    } catch {
+      debugLog("Failed to deactivate audio session: \(error)")
+      // Non-fatal - continue with stop
+    }
+
+    debugLog("Playback stopped")
     return true
   }
 }

@@ -2,11 +2,12 @@ Pod::Spec.new do |s|
   s.name           = 'BackgroundAudio'
   s.version        = '1.0.0'
   s.summary        = 'Background audio module for iOS'
-  s.description    = 'Native iOS module for background audio playback using AVAudioPlayer'
-  s.author         = ''
-  s.homepage       = 'https://github.com/example/background-audio'
+  s.description    = 'Native iOS module for background audio playback using AVAudioPlayer. Enables background execution for the Igloo threshold signer.'
+  s.author         = 'FROSTR-ORG'
+  s.homepage       = 'https://github.com/FROSTR-ORG/igloo-ios'
+  s.license        = { :type => 'MIT' }
   s.platforms      = { :ios => '15.1' }
-  s.source         = { :git => '' }
+  s.source         = { :git => 'https://github.com/FROSTR-ORG/igloo-ios.git' }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'

@@ -2,23 +2,17 @@ import * as Haptics from 'expo-haptics';
 import { Plus, RotateCcw, Server, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { DEFAULT_RELAYS } from '@/types';
 import { IconButton } from './IconButton';
 
 interface RelayInputProps {
   relays: string[];
   onChange: (relays: string[]) => void;
-  defaultRelays?: string[];
+  defaultRelays?: readonly string[];
   showResetButton?: boolean;
   disabled?: boolean;
   className?: string;
 }
-
-// Default relays if none provided
-const DEFAULT_RELAYS = [
-  'wss://relay.primal.net',
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-];
 
 /**
  * Validates a relay URL
@@ -138,7 +132,7 @@ export function RelayInput({
         {
           text: 'Reset',
           onPress: () => {
-            onChange(defaultRelays);
+            onChange([...defaultRelays]);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
@@ -255,5 +249,5 @@ export function RelayInput({
   );
 }
 
-export { DEFAULT_RELAYS, normalizeRelayUrl, validateRelayUrl };
+export { normalizeRelayUrl, validateRelayUrl };
 

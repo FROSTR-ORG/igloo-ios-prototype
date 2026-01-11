@@ -18,7 +18,7 @@ class AudioService {
 
     if (Platform.OS === 'ios' && BackgroundAudioModule) {
       console.log('[AudioService] Expo BackgroundAudioModule available');
-    } else {
+    } else if (__DEV__) {
       console.warn('[AudioService] Module not available - ensure you are running a development build (npx expo run:ios)');
     }
   }
@@ -60,12 +60,14 @@ class AudioService {
    * Stop playing background audio.
    */
   async stop(): Promise<void> {
-    if (!this.isPlaying) {
-      return;
-    }
-
     if (Platform.OS === 'ios' && BackgroundAudioModule) {
       try {
+        // Check native state in case JS state is out of sync
+        const nativeIsPlaying = await BackgroundAudioModule.isPlaying();
+        if (!nativeIsPlaying && !this.isPlaying) {
+          return;
+        }
+
         await BackgroundAudioModule.stop();
         this.isPlaying = false;
         console.log('[AudioService] Native playback stopped');
@@ -77,9 +79,29 @@ class AudioService {
   }
 
   /**
-   * Check if audio is currently playing.
+   * Check if audio is currently playing (cached JS state).
+   * May be out of sync with native state in edge cases.
    */
   getIsPlaying(): boolean {
+    return this.isPlaying;
+  }
+
+  /**
+   * Check if audio is currently playing (queries native state).
+   * Use this for accurate state when native/JS sync matters.
+   */
+  async getIsPlayingAsync(): Promise<boolean> {
+    if (Platform.OS === 'ios' && BackgroundAudioModule) {
+      try {
+        const nativeIsPlaying = await BackgroundAudioModule.isPlaying();
+        // Sync JS state with native state
+        this.isPlaying = nativeIsPlaying;
+        return nativeIsPlaying;
+      } catch (error) {
+        console.error('[AudioService] Failed to check native playing state:', error);
+        return this.isPlaying;
+      }
+    }
     return this.isPlaying;
   }
 
