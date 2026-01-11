@@ -14,7 +14,13 @@
       "backgroundColor": "#041b25"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      },
+      "bundleIdentifier": "com.anonymous.igloo-ios"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +28,10 @@
         "backgroundColor": "#041b25"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",

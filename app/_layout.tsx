@@ -23,6 +23,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCredentialStore } from '@/stores';
 import { useIgloo } from '@/hooks';
 import { secureStorage } from '@/services/storage/secureStorage';
+import { audioService } from '@/services/audio';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -68,6 +69,11 @@ function RootLayoutNav() {
 
   // Initialize IglooService event listeners and get the getShareDetails function
   const { getShareDetails } = useIgloo();
+
+  // Pre-initialize audio mode to avoid delay when signer starts
+  useEffect(() => {
+    audioService.initialize().catch(console.warn);
+  }, []);
 
   // Hydrate credential state from storage on mount
   useEffect(() => {

@@ -21,6 +21,16 @@ interface CollapsibleProps {
   onToggle?: (isExpanded: boolean) => void;
 }
 
+interface CollapsibleSectionProps {
+  title: string;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+  onToggle?: (isExpanded: boolean) => void;
+}
+
 export function Collapsible({
   title,
   icon,
@@ -129,7 +139,7 @@ export function CollapsibleSection({
   children,
   className,
   onToggle,
-}: CollapsibleProps) {
+}: CollapsibleSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultOpen);
 
   const handleToggle = () => {

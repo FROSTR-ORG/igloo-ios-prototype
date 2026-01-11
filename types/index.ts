@@ -88,6 +88,8 @@ export interface RelayConfig {
 
 export const DEFAULT_RELAYS = [
   'wss://relay.primal.net',
+  'wss://relay.damus.io',
+  'wss://nos.lol',
 ] as const;
 
 // ============================================
