@@ -196,6 +196,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       if (ENABLE_BACKGROUND_AUDIO && !options.keepAudio) {
         audioService.stopHealthCheck();
         audioService.unsubscribeFromNativeEvents();
+        audioService.setStatusChangeCallback(undefined);
         try {
           await audioService.stop();
           this.emit('audio:status', 'idle');
@@ -217,6 +218,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       if (ENABLE_BACKGROUND_AUDIO && !options.keepAudio) {
         audioService.stopHealthCheck();
         audioService.unsubscribeFromNativeEvents();
+        audioService.setStatusChangeCallback(undefined);
         try {
           await audioService.stop();
           this.emit('audio:status', 'idle');

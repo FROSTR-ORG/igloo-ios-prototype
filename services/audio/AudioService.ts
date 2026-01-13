@@ -21,6 +21,7 @@ interface PlaybackStateEvent {
 class AudioService {
   private isPlaying: boolean = false;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private healthCheckInFlight: boolean = false;
   private onHealthCheckFailed?: () => void;
   private nativeEventSubscription: EmitterSubscription | null = null;
   private onStatusChange?: (status: AudioStatus) => void;
@@ -85,6 +86,7 @@ class AudioService {
 
   /**
    * Stop playing background audio.
+   * @throws Error if native module call fails
    */
   async stop(): Promise<void> {
     if (Platform.OS === 'ios' && BackgroundAudioModule) {
@@ -100,7 +102,7 @@ class AudioService {
         console.log('[AudioService] Native playback stopped');
       } catch (error) {
         console.error('[AudioService] Failed to stop native playback:', error);
-        this.isPlaying = false;
+        throw error;
       }
     }
   }
@@ -185,15 +187,28 @@ class AudioService {
     this.stopHealthCheck(); // Clear any existing interval
     this.onHealthCheckFailed = onFailed;
 
-    this.healthCheckInterval = setInterval(async () => {
-      if (this.isPlaying) {
-        const nativeIsPlaying = await this.getIsPlayingAsync();
-        if (!nativeIsPlaying) {
-          console.warn('[AudioService] Health check failed - audio stopped unexpectedly');
-          this.isPlaying = false;
-          this.onHealthCheckFailed?.();
-        }
+    this.healthCheckInterval = setInterval(() => {
+      // Skip if not playing or if a previous check is still running
+      if (!this.isPlaying || this.healthCheckInFlight) {
+        return;
       }
+
+      this.healthCheckInFlight = true;
+
+      this.getIsPlayingAsync()
+        .then((nativeIsPlaying) => {
+          if (!nativeIsPlaying && this.isPlaying) {
+            console.warn('[AudioService] Health check failed - audio stopped unexpectedly');
+            this.isPlaying = false;
+            this.onHealthCheckFailed?.();
+          }
+        })
+        .catch((error) => {
+          console.error('[AudioService] Health check error:', error);
+        })
+        .finally(() => {
+          this.healthCheckInFlight = false;
+        });
     }, intervalMs);
 
     console.log(`[AudioService] Health check started (interval: ${intervalMs}ms)`);
@@ -206,6 +221,7 @@ class AudioService {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
+      this.healthCheckInFlight = false;
       console.log('[AudioService] Health check stopped');
     }
   }
@@ -213,8 +229,9 @@ class AudioService {
   /**
    * Set callback for audio status changes from native events.
    * Called when audio is interrupted, resumed, or fails.
+   * Pass undefined to clear the callback.
    */
-  setStatusChangeCallback(callback: (status: AudioStatus) => void): void {
+  setStatusChangeCallback(callback: ((status: AudioStatus) => void) | undefined): void {
     this.onStatusChange = callback;
   }
 

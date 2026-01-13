@@ -15,7 +15,7 @@ Without background execution, iOS suspends the app within seconds of being backg
 
 ## Integration Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      User Interface                         │
 │  - Start/Stop signer button                                 │
@@ -179,7 +179,7 @@ This handles cases where:
 
 ## Lifecycle States
 
-```
+```text
 ┌─────────────┐     startSigner()     ┌─────────────┐
 │   Stopped   │ ───────────────────▶  │ Connecting  │
 │  (no audio) │                       │  (no audio) │
@@ -287,7 +287,7 @@ This handles cases where:
 
 ### Expected Log Sequence
 
-```
+```text
 [IglooService] Starting signer node...
 [IglooService] Signer node started successfully
 [AudioService] Calling native play with soundscape: ocean-waves...
@@ -310,7 +310,7 @@ This handles cases where:
 
 ### Restart Log Sequence (No Audio Drop)
 
-```
+```text
 [IglooService] Signer already running, restarting (keeping audio)...
 [IglooService] Stopping signer node... { keepAudio: true }
 [IglooService] Signer node stopped
@@ -334,7 +334,7 @@ This handles cases where:
 
 ## Files Involved
 
-```
+```text
 services/
 ├── igloo/
 │   └── IglooService.ts      # Main integration (emits audio:status events)
@@ -384,7 +384,7 @@ Yes! Go to Settings while your signer is running and select from available sound
 
 ### Does this use a lot of battery?
 
-The audio playback uses minimal battery (~2-4% per hour), comparable to playing music. The signer itself also uses minimal resources when idle.
+The audio playback typically uses minimal battery — comparable to playing music. Actual drain varies by device, OS version, volume level, and usage patterns. The signer itself also uses minimal resources when idle.
 
 ### Why not use silent audio?
 
@@ -432,7 +432,7 @@ iOS requires actual audio output for the background mode to work. A truly silent
 
 ### "Signer isn't working in background"
 
-```
+```text
 1. Is signer status "Running"?
    ├─ No → Start the signer
    └─ Yes → Continue to step 2
@@ -471,7 +471,7 @@ iOS requires actual audio output for the background mode to work. A truly silent
 | Audio stops after phone call | Interruption recovery failed | Restart signer |
 | "Audio failed" warning in UI | Native module error | Check device volume, restart app |
 | Signer suspended in background | Audio not playing | Check Control Center, restart signer |
-| High battery drain | Expected ~3%/hour | Normal for background operation |
+| High battery drain | Typically minimal, varies by device/usage | Normal for background operation |
 | Audio plays in silent mode | Required by iOS | Normal - adjust volume in Settings |
 
 ### Recovery Procedures

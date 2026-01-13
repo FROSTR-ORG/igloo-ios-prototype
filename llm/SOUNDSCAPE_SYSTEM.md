@@ -6,7 +6,7 @@ The Soundscape System provides a scalable architecture for managing multiple amb
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        UI Layer                              │
 ├─────────────────────────────────────────────────────────────┤
@@ -62,7 +62,7 @@ The Soundscape System provides a scalable architecture for managing multiple amb
 
 ## File Structure
 
-```
+```text
 types/
 └── index.ts                    # SoundscapeId, SoundscapeConfig types
 
@@ -261,7 +261,7 @@ The native module handles the transition by:
 
 The currently playing soundscape is displayed in iOS Control Center:
 
-```
+```text
 Igloo Signer
 Ocean Waves
 ```

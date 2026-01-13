@@ -1,7 +1,13 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, Pressable, GestureResponderEvent } from 'react-native';
-import { Volume2, VolumeX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { Volume2, VolumeX } from 'lucide-react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  AccessibilityActionEvent,
+  GestureResponderEvent,
+  Pressable,
+  Text,
+  View,
+} from 'react-native';
 
 interface VolumeControlProps {
   value: number;
@@ -83,6 +89,43 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
     Haptics.selectionAsync();
   }, [disabled]);
 
+  /**
+   * Handles accessibility actions for VoiceOver/TalkBack gestures.
+   * Supports increment, decrement, and set actions to adjust volume.
+   */
+  const handleAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      if (disabled) return;
+
+      const step = 0.05; // 5% volume step
+      let newValue = value;
+
+      switch (event.nativeEvent.actionName) {
+        case 'increment':
+          newValue = clamp(value + step);
+          break;
+        case 'decrement':
+          newValue = clamp(value - step);
+          break;
+        case 'set':
+          // For set action, we could use a default increment
+          // or handle it based on the event's value if available
+          newValue = clamp(value + step);
+          break;
+        default:
+          return;
+      }
+
+      onValueChange(newValue);
+      if (newValue > 0) {
+        setIsMuted(false);
+        previousVolume.current = newValue;
+      }
+      Haptics.selectionAsync();
+    },
+    [disabled, value, onValueChange],
+  );
+
   const isEffectivelyMuted = value === 0;
   const percentage = Math.round(clamp(value) * 100);
 
@@ -100,6 +143,9 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
         <Pressable
           onPress={handleMuteToggle}
           disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel={isEffectivelyMuted ? 'Unmute' : 'Mute'}
+          accessibilityValue={{ text: `${percentage}%` }}
           className={`p-2 rounded-lg ${
             disabled
               ? 'bg-gray-800/50'
@@ -125,6 +171,10 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
           onResponderGrant={handleTouchStart}
           onResponderMove={handleTouchMove}
           onResponderRelease={handleTouchEnd}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Volume"
+          accessibilityValue={{ text: `${percentage}%` }}
+          onAccessibilityAction={handleAccessibilityAction}
         >
           <View className={`h-2 rounded-full ${disabled ? 'bg-gray-800' : 'bg-gray-700'}`}>
             {/* Filled Track */}

@@ -27,7 +27,7 @@ declare class BackgroundAudioModuleType extends NativeModule {
   setSoundscape(filename: string): Promise<boolean>;
 
   /** Get the current soundscape filename. */
-  getCurrentSoundscape(): string;
+  getCurrentSoundscape(): Promise<string>;
 }
 
 // Gracefully handle missing native module (e.g., when running in Expo Go)

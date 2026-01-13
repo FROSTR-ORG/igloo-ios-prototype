@@ -37,7 +37,7 @@ Use Expo Go only for UI work that doesn't involve the signer.
 #### Step 1: Install Expo Go
 
 Download from the App Store on your iPhone:
-- Search "Expo Go" or visit: https://apps.apple.com/app/expo-go/id982107779
+- Search "Expo Go" or visit: [Expo Go](https://apps.apple.com/app/expo-go/id982107779)
 
 #### Step 2: Start Development Server
 
@@ -47,7 +47,7 @@ bun start
 ```
 
 You'll see output like:
-```
+```text
 › Metro waiting on exp://192.168.1.100:8081
 › Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
 
