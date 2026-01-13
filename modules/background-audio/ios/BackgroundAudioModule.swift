@@ -14,12 +14,15 @@ private func debugLog(_ message: String) {
 
 // Separate delegate class since Module can't inherit from NSObject
 private class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
+  var onDecodeError: ((Error?) -> Void)?
+
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
     debugLog("Delegate: finished playing, success: \(flag)")
   }
 
   func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
     debugLog("Delegate: DECODE ERROR: \(error?.localizedDescription ?? "unknown")")
+    onDecodeError?(error)
   }
 }
 
@@ -40,6 +43,7 @@ public class BackgroundAudioModule: Module {
     OnCreate {
       debugLog("Module created")
       self.setupNotificationHandlers()
+      self.setupDelegateCallbacks()
     }
 
     OnDestroy {
@@ -109,6 +113,24 @@ public class BackgroundAudioModule: Module {
       queue: .main
     ) { [weak self] notification in
       self?.handleRouteChange(notification: notification)
+    }
+  }
+
+  private func setupDelegateCallbacks() {
+    audioDelegate.onDecodeError = { [weak self] error in
+      Task { @MainActor in
+        guard let self = self else { return }
+        debugLog("Handling decode error: \(error?.localizedDescription ?? "unknown")")
+        self.playing = false
+        self.audioPlayer?.stop()
+        self.audioPlayer = nil
+        self.clearNowPlayingInfo()
+        self.sendEvent(onPlaybackStateChanged, [
+          "isPlaying": false,
+          "reason": "decodeError",
+          "error": error?.localizedDescription ?? "Unknown decode error"
+        ])
+      }
     }
   }
 
@@ -190,52 +212,54 @@ public class BackgroundAudioModule: Module {
       return
     }
 
-    switch type {
-    case .began:
-      debugLog("Interruption BEGAN")
-      // Emit event to JS - audio is interrupted
-      self.sendEvent(onPlaybackStateChanged, [
-        "isPlaying": false,
-        "reason": "interrupted"
-      ])
-    case .ended:
-      debugLog("Interruption ENDED")
-      if playing {
-        debugLog("Attempting to resume playback...")
-        do {
-          try AVAudioSession.sharedInstance().setActive(true, options: [])
-          let resumed = audioPlayer?.play() ?? false
-          debugLog("Resume result: \(resumed)")
-          if !resumed {
-            // Player failed to resume - update state to reflect reality
-            debugLog("WARNING: Resume failed, updating playing state to false")
-            playing = false
+    Task { @MainActor in
+      switch type {
+      case .began:
+        debugLog("Interruption BEGAN")
+        // Emit event to JS - audio is interrupted
+        self.sendEvent(onPlaybackStateChanged, [
+          "isPlaying": false,
+          "reason": "interrupted"
+        ])
+      case .ended:
+        debugLog("Interruption ENDED")
+        if self.playing {
+          debugLog("Attempting to resume playback...")
+          do {
+            try AVAudioSession.sharedInstance().setActive(true, options: [])
+            let resumed = self.audioPlayer?.play() ?? false
+            debugLog("Resume result: \(resumed)")
+            if !resumed {
+              // Player failed to resume - update state to reflect reality
+              debugLog("WARNING: Resume failed, updating playing state to false")
+              self.playing = false
+              // Emit event to JS - resume failed
+              self.sendEvent(onPlaybackStateChanged, [
+                "isPlaying": false,
+                "reason": "resumeFailed"
+              ])
+            } else {
+              // Emit event to JS - successfully resumed
+              self.sendEvent(onPlaybackStateChanged, [
+                "isPlaying": true,
+                "reason": "resumed",
+                "soundscape": self.currentSoundscape
+              ])
+            }
+          } catch {
+            debugLog("Failed to resume audio session: \(error)")
+            // Audio session activation failed - playback cannot continue
+            self.playing = false
             // Emit event to JS - resume failed
             self.sendEvent(onPlaybackStateChanged, [
               "isPlaying": false,
               "reason": "resumeFailed"
             ])
-          } else {
-            // Emit event to JS - successfully resumed
-            self.sendEvent(onPlaybackStateChanged, [
-              "isPlaying": true,
-              "reason": "resumed",
-              "soundscape": self.currentSoundscape
-            ])
           }
-        } catch {
-          debugLog("Failed to resume audio session: \(error)")
-          // Audio session activation failed - playback cannot continue
-          playing = false
-          // Emit event to JS - resume failed
-          self.sendEvent(onPlaybackStateChanged, [
-            "isPlaying": false,
-            "reason": "resumeFailed"
-          ])
         }
+      @unknown default:
+        debugLog("Unknown interruption type")
       }
-    @unknown default:
-      debugLog("Unknown interruption type")
     }
   }
 
@@ -246,21 +270,23 @@ public class BackgroundAudioModule: Module {
       return
     }
 
-    debugLog("Route changed, reason: \(reason.rawValue)")
-    let session = AVAudioSession.sharedInstance()
-    debugLog("New output routes: \(session.currentRoute.outputs.map { $0.portName })")
+    Task { @MainActor in
+      debugLog("Route changed, reason: \(reason.rawValue)")
+      let session = AVAudioSession.sharedInstance()
+      debugLog("New output routes: \(session.currentRoute.outputs.map { $0.portName })")
 
-    // Resume playback if route changed but we should still be playing
-    if playing && audioPlayer?.isPlaying == false {
-      debugLog("Player stopped due to route change, resuming...")
-      let resumed = audioPlayer?.play() ?? false
-      if !resumed {
-        debugLog("WARNING: Route change resume failed")
-        playing = false
-        self.sendEvent(onPlaybackStateChanged, [
-          "isPlaying": false,
-          "reason": "routeChangeFailed"
-        ])
+      // Resume playback if route changed but we should still be playing
+      if self.playing && self.audioPlayer?.isPlaying == false {
+        debugLog("Player stopped due to route change, resuming...")
+        let resumed = self.audioPlayer?.play() ?? false
+        if !resumed {
+          debugLog("WARNING: Route change resume failed")
+          self.playing = false
+          self.sendEvent(onPlaybackStateChanged, [
+            "isPlaying": false,
+            "reason": "routeChangeFailed"
+          ])
+        }
       }
     }
   }
