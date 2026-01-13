@@ -88,8 +88,8 @@ public class BackgroundAudioModule: Module {
     }
 
     // Get the current soundscape filename
-    Function("getCurrentSoundscape") { () -> String in
-      return self.currentSoundscape
+    AsyncFunction("getCurrentSoundscape") { () async -> String in
+      return await MainActor.run { self.currentSoundscape }
     }
   }
 
