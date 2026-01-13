@@ -59,20 +59,24 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
   const handleTouchStart = useCallback((event: GestureResponderEvent) => {
     if (disabled) return;
 
-    // Re-measure on touch start in case layout shifted (e.g., scroll, orientation change)
+    const pageX = event.nativeEvent.pageX;
+
+    // Measure and calculate in callback to avoid race condition with stale layout
     trackRef.current?.measureInWindow((x, _y, width) => {
-      trackLayout.current = { x, width };
+      if (width > 0) {
+        trackLayout.current = { x, width };
+        const touchX = pageX - x;
+        const newValue = clamp(touchX / width);
+        onValueChange(newValue);
+        if (newValue > 0) {
+          setIsMuted(false);
+          previousVolume.current = newValue;
+        }
+      }
     });
 
-    // Use pre-measured layout for immediate response
-    const newValue = calculateValueFromTouch(event.nativeEvent.pageX);
-    onValueChange(newValue);
-    if (newValue > 0) {
-      setIsMuted(false);
-      previousVolume.current = newValue;
-    }
     Haptics.selectionAsync();
-  }, [disabled, calculateValueFromTouch, onValueChange]);
+  }, [disabled, onValueChange]);
 
   const handleTouchMove = useCallback((event: GestureResponderEvent) => {
     if (disabled) return;

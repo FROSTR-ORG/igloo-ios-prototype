@@ -213,15 +213,12 @@ npx expo run:ios
 
 ## Volume Control
 
-The VolumeControl component provides preset volume levels:
+The VolumeControl component provides a continuous volume slider:
 
-| Preset | Value | Description |
-|--------|-------|-------------|
-| Off    | 0.0   | Silent (audio still plays for background mode) |
-| Low    | 0.15  | Barely audible |
-| Med    | 0.3   | Default, unobtrusive |
-| High   | 0.5   | Clearly audible |
-| Max    | 0.75  | Full presence |
+- **Range**: 0.0 to 1.0 (displayed as 0% to 100%)
+- **Default**: 0.3 (30%) - defined in `soundscapes.ts` as `DEFAULT_VOLUME`
+- **Mute button**: Toggles between 0 and previous volume
+- **Accessibility**: Supports VoiceOver/TalkBack with 5% increment steps
 
 **Note**: Even at 0 volume, the audio file continues playing silently. This is required by iOS for background execution. Setting volume to 0 effectively mutes the soundscape while maintaining background operation.
 

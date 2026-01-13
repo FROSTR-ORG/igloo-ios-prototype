@@ -65,9 +65,11 @@ class AudioService {
           return;
         }
 
-        if (this.isPlaying) {
-          console.log('[AudioService] Already playing (JS state)');
-          return;
+        // Detect and fix state desync: JS thinks playing but native stopped
+        if (this.isPlaying && !nativeIsPlaying) {
+          console.warn('[AudioService] State desync detected: JS thought playing but native stopped, resyncing');
+          this.isPlaying = false;
+          // Continue to start playback below
         }
 
         const filename = getSoundscapeFilename(this.currentSoundscapeId);
