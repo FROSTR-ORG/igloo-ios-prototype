@@ -33,6 +33,7 @@ public class BackgroundAudioModule: Module {
   private var interruptionObserver: NSObjectProtocol?
   private var routeChangeObserver: NSObjectProtocol?
   private var currentSoundscape: String = "ocean-waves"  // Default soundscape filename
+  private var currentVolume: Float = 0.3  // Persists across player recreation
 
   public func definition() -> ModuleDefinition {
     Name("BackgroundAudio")
@@ -66,7 +67,9 @@ public class BackgroundAudioModule: Module {
 
     AsyncFunction("setVolume") { (volume: Double) -> Bool in
       await MainActor.run {
-        self.audioPlayer?.volume = Float(max(0, min(1, volume)))
+        let clampedVolume = Float(max(0, min(1, volume)))
+        self.currentVolume = clampedVolume
+        self.audioPlayer?.volume = clampedVolume
       }
       return true
     }
@@ -337,7 +340,7 @@ public class BackgroundAudioModule: Module {
       audioPlayer = try AVAudioPlayer(contentsOf: audioURL)
       audioPlayer?.delegate = audioDelegate
       audioPlayer?.numberOfLoops = -1
-      audioPlayer?.volume = 0.3
+      audioPlayer?.volume = currentVolume
 
       debugLog("Player created successfully")
       debugLog("- Duration: \(audioPlayer?.duration ?? 0) seconds")
