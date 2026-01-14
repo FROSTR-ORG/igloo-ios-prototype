@@ -146,10 +146,12 @@ export const SOUNDSCAPE_REGISTRY: Record<SoundscapeId, SoundscapeConfig> = {
 ### Step 1: Prepare Audio File
 
 1. Source or create your audio file
-2. Convert to AAC/M4A format (128kbps recommended):
+2. Convert to AAC/M4A format (VBR ~128kbps recommended):
    ```bash
-   afconvert -f m4af -d aac -b 128000 source.wav output.m4a
+   afconvert -f m4af -d aac -b 128000 -q 127 -s 2 source.wav output.m4a
    ```
+   - `-q 127`: Max VBR quality (0-127)
+   - `-s 2`: Constrained VBR mode
 3. Ensure it loops cleanly (60-90 seconds recommended)
 
 ### Step 2: Add to iOS Bundle
