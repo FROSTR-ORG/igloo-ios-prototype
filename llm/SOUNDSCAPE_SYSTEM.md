@@ -17,8 +17,8 @@ The Soundscape System provides a scalable architecture for managing multiple amb
 │  - Haptic feedback on selection                              │
 │                                                              │
 │  VolumeControl.tsx                                           │
-│  - Volume presets: Off (0), Low, Med, High, Max              │
-│  - Allows complete muting with Off option                    │
+│  - Continuous slider (range 0.0–1.0, displayed as 0%–100%)  │
+│  - Mute toggle button (toggles between 0 and previous volume)│
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
@@ -75,7 +75,7 @@ stores/
 └── audioStore.ts               # Persisted audio preferences
 
 components/ui/
-├── VolumeControl.tsx           # Volume preset buttons (Off/Low/Med/High/Max)
+├── VolumeControl.tsx           # Continuous volume slider (0.0–1.0) with mute toggle
 ├── SoundscapeSelector.tsx      # Soundscape grid selector
 └── index.ts                    # Exports
 
@@ -289,8 +289,8 @@ The registry validates soundscape IDs at compile time via TypeScript types.
    - [ ] Haptic feedback on selection
 
 2. **Volume Control**
-   - [ ] All presets work (Off through Max)
-   - [ ] Off preset mutes audio
+   - [ ] Slider allows continuous adjustment (0% to 100%)
+   - [ ] Mute toggle button works (toggles between 0 and previous volume)
    - [ ] Volume persists across app restarts
 
 3. **Hot-Swap**

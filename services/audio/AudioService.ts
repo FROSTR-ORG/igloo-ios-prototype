@@ -158,18 +158,22 @@ class AudioService {
    * @throws Error if native module call fails
    */
   async setSoundscape(soundscapeId: SoundscapeId): Promise<void> {
-    this.currentSoundscapeId = soundscapeId;
     const filename = getSoundscapeFilename(soundscapeId);
     console.log(`[AudioService] Setting soundscape to: ${filename}`);
 
     if (Platform.OS === 'ios' && BackgroundAudioModule) {
       try {
         await BackgroundAudioModule.setSoundscape(filename);
+        // Update JS state only after native call succeeds
+        this.currentSoundscapeId = soundscapeId;
         console.log('[AudioService] Soundscape changed successfully');
       } catch (error) {
         console.error('[AudioService] Failed to set soundscape:', error);
         throw error;
       }
+    } else {
+      // Non-iOS or no module: just update local state
+      this.currentSoundscapeId = soundscapeId;
     }
   }
 
