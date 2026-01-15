@@ -86,11 +86,16 @@ modules/background-audio/
     └── BackgroundAudioModule.swift  # Native implementation
 
 ios/Igloo/
-├── ocean-waves.m4a             # Default soundscape (bundled)
-├── rain.m4a                    # (Future) Rain sounds
-├── forest.m4a                  # (Future) Forest ambience
-├── whitenoise.m4a              # (Future) White noise
-└── campfire.m4a                # (Future) Campfire sounds
+├── ocean-waves.m4a             # Default soundscape
+├── rain.m4a                    # Rain sounds
+├── forest.m4a                  # Forest ambience
+├── white-noise.m4a             # White noise
+├── campfire.m4a                # Campfire sounds
+├── amazon-jungle.m4a           # Tropical rainforest ambience
+├── ambient-dream.m4a           # Ethereal atmospheric soundscape
+├── birds.m4a                   # Gentle birdsong
+├── rain-and-birds.m4a          # Rainfall with birdsong
+└── space-atmosphere.m4a        # Cosmic ambient sounds
 ```
 
 ## Types
@@ -100,7 +105,17 @@ ios/Igloo/
 Unique identifier for each soundscape:
 
 ```typescript
-type SoundscapeId = 'ocean-waves' | 'rain' | 'forest' | 'white-noise' | 'campfire';
+type SoundscapeId =
+  | 'ocean-waves'
+  | 'rain'
+  | 'forest'
+  | 'white-noise'
+  | 'campfire'
+  | 'amazon-jungle'
+  | 'ambient-dream'
+  | 'birds'
+  | 'rain-and-birds'
+  | 'space-atmosphere';
 ```
 
 ### SoundscapeConfig
@@ -135,9 +150,9 @@ export const SOUNDSCAPE_REGISTRY: Record<SoundscapeId, SoundscapeConfig> = {
     name: 'Rain',
     description: 'Soft rainfall on leaves',
     filename: 'rain',
-    available: false,  // Not yet bundled
+    available: true,
   },
-  // ... more soundscapes
+  // ... 10 available soundscapes total
 };
 ```
 

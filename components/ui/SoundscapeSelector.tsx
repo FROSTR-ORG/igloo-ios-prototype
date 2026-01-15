@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Check, Waves, CloudRain, Trees, Radio, Flame, Lock } from 'lucide-react-native';
+import { Check, Waves, CloudRain, Trees, Radio, Flame, Lock, TreePalm, Sparkles, Bird, Star } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import type { SoundscapeId, SoundscapeConfig } from '@/types';
 import { getAllSoundscapes } from '@/services/audio/soundscapes';
@@ -28,6 +28,16 @@ function getSoundscapeIcon(id: SoundscapeId, color: string, size: number) {
       return <Radio {...iconProps} />;
     case 'campfire':
       return <Flame {...iconProps} />;
+    case 'amazon-jungle':
+      return <TreePalm {...iconProps} />;
+    case 'ambient-dream':
+      return <Sparkles {...iconProps} />;
+    case 'birds':
+      return <Bird {...iconProps} />;
+    case 'rain-and-birds':
+      return <CloudRain {...iconProps} />;
+    case 'space-atmosphere':
+      return <Star {...iconProps} />;
     default:
       return <Waves {...iconProps} />;
   }

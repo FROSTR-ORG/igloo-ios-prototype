@@ -54,7 +54,11 @@ export default function SettingsTab() {
   const handleSoundscapeChange = useCallback(async (id: SoundscapeId) => {
     const previousSoundscapeId = soundscapeId;
     try {
-      await audioService.setSoundscape(id);
+      // If signer is running, update the active audio player
+      if (isRunning) {
+        await audioService.setSoundscape(id);
+      }
+      // Always save the preference
       setSoundscape(id);
     } catch (error) {
       // Revert to previous soundscape on failure
@@ -64,7 +68,7 @@ export default function SettingsTab() {
         error instanceof Error ? error.message : 'Failed to change soundscape'
       );
     }
-  }, [soundscapeId, setSoundscape]);
+  }, [soundscapeId, setSoundscape, isRunning]);
 
   const handleClearCredentials = useCallback(async () => {
     Alert.alert(
@@ -144,11 +148,10 @@ export default function SettingsTab() {
               <SoundscapeSelector
                 value={soundscapeId}
                 onValueChange={handleSoundscapeChange}
-                disabled={!isRunning}
               />
               {!isRunning && (
                 <Text className="text-xs text-gray-500 mt-2">
-                  Start the signer to change soundscape
+                  Start signer to play soundscape
                 </Text>
               )}
             </Card>

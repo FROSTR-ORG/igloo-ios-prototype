@@ -31,28 +31,63 @@ export const SOUNDSCAPE_REGISTRY: Record<SoundscapeId, SoundscapeConfig> = {
     name: 'Rain',
     description: 'Soft rainfall on leaves',
     filename: 'rain',
-    available: false, // Not yet bundled
+    available: true,
   },
   'forest': {
     id: 'forest',
     name: 'Forest',
     description: 'Birds and rustling leaves',
     filename: 'forest',
-    available: false, // Not yet bundled
+    available: true,
   },
   'white-noise': {
     id: 'white-noise',
     name: 'White Noise',
     description: 'Steady ambient noise',
     filename: 'white-noise',
-    available: false, // Not yet bundled
+    available: true,
   },
   'campfire': {
     id: 'campfire',
     name: 'Campfire',
     description: 'Crackling fire sounds',
     filename: 'campfire',
-    available: false, // Not yet bundled
+    available: true,
+  },
+  'amazon-jungle': {
+    id: 'amazon-jungle',
+    name: 'Amazon Jungle',
+    description: 'Tropical rainforest ambience',
+    filename: 'amazon-jungle',
+    available: true,
+  },
+  'ambient-dream': {
+    id: 'ambient-dream',
+    name: 'Ambient Dream',
+    description: 'Ethereal atmospheric soundscape',
+    filename: 'ambient-dream',
+    available: true,
+  },
+  'birds': {
+    id: 'birds',
+    name: 'Birds',
+    description: 'Gentle birdsong and chirping',
+    filename: 'birds',
+    available: true,
+  },
+  'rain-and-birds': {
+    id: 'rain-and-birds',
+    name: 'Rain & Birds',
+    description: 'Rainfall with birdsong',
+    filename: 'rain-and-birds',
+    available: true,
+  },
+  'space-atmosphere': {
+    id: 'space-atmosphere',
+    name: 'Space Atmosphere',
+    description: 'Cosmic ambient sounds',
+    filename: 'space-atmosphere',
+    available: true,
   },
 };
 

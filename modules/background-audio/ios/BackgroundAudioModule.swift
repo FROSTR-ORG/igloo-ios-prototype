@@ -195,6 +195,16 @@ public class BackgroundAudioModule: Module {
       return "White Noise"
     case "campfire":
       return "Campfire"
+    case "amazon-jungle":
+      return "Amazon Jungle"
+    case "ambient-dream":
+      return "Ambient Dream"
+    case "birds":
+      return "Birds"
+    case "rain-and-birds":
+      return "Rain & Birds"
+    case "space-atmosphere":
+      return "Space Atmosphere"
     default:
       return "Soundscape"
     }

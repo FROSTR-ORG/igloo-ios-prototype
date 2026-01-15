@@ -37,7 +37,17 @@ export type AudioStatus = 'idle' | 'playing' | 'interrupted' | 'error';
 // ============================================
 
 /** Unique identifier for a soundscape */
-export type SoundscapeId = 'ocean-waves' | 'rain' | 'forest' | 'white-noise' | 'campfire';
+export type SoundscapeId =
+  | 'ocean-waves'
+  | 'rain'
+  | 'forest'
+  | 'white-noise'
+  | 'campfire'
+  | 'amazon-jungle'
+  | 'ambient-dream'
+  | 'birds'
+  | 'rain-and-birds'
+  | 'space-atmosphere';
 
 /** Configuration for a single soundscape option */
 export interface SoundscapeConfig {
