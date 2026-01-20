@@ -17,10 +17,12 @@
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
+          "audio",
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.anonymous.igloo-ios"
+      "bundleIdentifier": "org.frostr.igloo"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +32,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -50,6 +53,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "87b6f6cc-e335-457a-af92-f9728fdf4093"
+      }
+    },
+    "owner": "austinkelsay"
   }
 }
