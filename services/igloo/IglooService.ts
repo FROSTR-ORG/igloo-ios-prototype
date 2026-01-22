@@ -47,6 +47,9 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   private groupCredential: string | null = null;
   private shareCredential: string | null = null;
   private currentRelays: string[] = [];
+  private peerExtractionMode: 'igloo-core' | 'manual' = 'igloo-core';
+  private peerExtractionFallbackLogged = false;
+  private peerExtractionKey: string | null = null;
   // Track pending signing requests for correlation with completion events
   private pendingRequests: Map<string, SigningRequest> = new Map();
   // Track registered node event handlers for cleanup
@@ -75,6 +78,13 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         enableLogging: true,
         logLevel: 'debug',
         customLogger: (level, message, data) => {
+          const normalizedMessage = typeof message === 'string' ? message.toLowerCase() : '';
+          if (
+            normalizedMessage.includes('ping request rejected') ||
+            normalizedMessage.includes('ping rejection sent')
+          ) {
+            return;
+          }
           this.log(level as LogLevel, 'system', message, data as Record<string, unknown>);
         },
       };
@@ -198,6 +208,9 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.groupCredential = null;
       this.shareCredential = null;
       this.currentRelays = [];
+      this.peerExtractionMode = 'igloo-core';
+      this.peerExtractionFallbackLogged = false;
+      this.peerExtractionKey = null;
       this.pendingRequests.clear();
 
       this.emit('status:changed', 'stopped');
@@ -383,32 +396,48 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       return [];
     }
 
-    try {
-      // Try igloo-core function first
-      const peers = extractPeersFromCredentials(group, share).map(normalizePeerPubkey);
-      if (peers.length > 0) {
-        this.log('debug', 'peer', `Extracted ${peers.length} peers via igloo-core`, {
-          peers: peers.map((p) => truncatePubkey(p)),
-        });
-        return peers;
-      }
+    const extractionKey = `${group}:${share}`;
+    if (this.peerExtractionKey !== extractionKey) {
+      this.peerExtractionKey = extractionKey;
+      this.peerExtractionMode = 'igloo-core';
+      this.peerExtractionFallbackLogged = false;
+    }
 
-      // Fallback to manual extraction if igloo-core returns empty
-      return this.extractPeersManually(group, share);
-    } catch (error) {
-      this.log('warn', 'peer', 'Peer extraction via igloo-core failed, falling back to manual', {
-        error: error instanceof Error ? error.message : 'Unknown',
-        attempting: 'manual',
-      });
-
+    if (this.peerExtractionMode === 'igloo-core') {
       try {
-        return this.extractPeersManually(group, share);
-      } catch (manualError) {
-        this.log('error', 'peer', 'Manual peer extraction also failed', {
-          error: manualError instanceof Error ? manualError.message : 'Unknown',
-        });
-        return [];
+        const peers = extractPeersFromCredentials(group, share).map(normalizePeerPubkey);
+        if (peers.length > 0) {
+          this.log('debug', 'peer', `Extracted ${peers.length} peers via igloo-core`, {
+            peers: peers.map((p) => truncatePubkey(p)),
+          });
+          return peers;
+        }
+
+        this.peerExtractionMode = 'manual';
+        if (!this.peerExtractionFallbackLogged) {
+          this.peerExtractionFallbackLogged = true;
+          this.log('debug', 'peer', 'Peer extraction via igloo-core returned empty, using manual', {
+            peerCount: peers.length,
+          });
+        }
+      } catch (error) {
+        this.peerExtractionMode = 'manual';
+        if (!this.peerExtractionFallbackLogged) {
+          this.peerExtractionFallbackLogged = true;
+          this.log('debug', 'peer', 'Peer extraction via igloo-core failed, using manual', {
+            error: error instanceof Error ? error.message : 'Unknown',
+          });
+        }
       }
+    }
+
+    try {
+      return this.extractPeersManually(group, share);
+    } catch (manualError) {
+      this.log('error', 'peer', 'Manual peer extraction failed', {
+        error: manualError instanceof Error ? manualError.message : 'Unknown',
+      });
+      return [];
     }
   }
 
@@ -733,6 +762,42 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     };
     registerHandler('/sig/handler/err', handleSigningError);
 
+    // Peer ping events (inbound/outbound)
+    // Build known peers set once at registration time for efficient lookup.
+    // This prevents unknown pubkeys from being added to the peer store.
+    const knownPeers = new Set(this.getPeers().map(normalizePeerPubkey));
+
+    const handlePingRequest = (msg: unknown) => {
+      const pubkey = extractPingPubkeyFromMessage(msg);
+      if (!pubkey || !knownPeers.has(pubkey)) return;
+      this.emit('peer:status', pubkey, 'online');
+      this.log('debug', 'peer', 'Received ping request', {
+        pubkey: truncatePubkey(pubkey),
+      });
+    };
+    registerHandler('/ping/handler/req', handlePingRequest);
+
+    const handlePingSenderRet = (data: unknown) => {
+      const pubkey = extractPingPubkeyFromPeerData(data);
+      if (!pubkey || !knownPeers.has(pubkey)) return;
+      this.emit('peer:status', pubkey, 'online');
+      this.log('debug', 'peer', 'Ping response received', {
+        pubkey: truncatePubkey(pubkey),
+      });
+    };
+    registerHandler('/ping/sender/ret', handlePingSenderRet);
+
+    const handlePingSenderErr = (payload: unknown) => {
+      const pubkey = extractPingPubkeyFromError(payload);
+      if (!pubkey || !knownPeers.has(pubkey)) return;
+      this.emit('peer:status', pubkey, 'offline');
+      this.log('debug', 'peer', 'Ping failed', {
+        pubkey: truncatePubkey(pubkey),
+      });
+    };
+    registerHandler('/ping/sender/err', handlePingSenderErr);
+    registerHandler('/ping/sender/rej', handlePingSenderErr);
+
     // Node error
     const handleNodeError = (error: unknown) => {
       const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -895,6 +960,23 @@ function truncatePubkey(pubkey: string): string {
 function normalizePeerPubkey(pubkey: string): string {
   if (!pubkey) return pubkey;
   return normalizePubkey(pubkey).toLowerCase();
+}
+
+function extractPingPubkeyFromMessage(message: unknown): string | null {
+  const pubkey = (message as { env?: { pubkey?: string } } | null)?.env?.pubkey;
+  return pubkey ? normalizePeerPubkey(pubkey) : null;
+}
+
+function extractPingPubkeyFromPeerData(data: unknown): string | null {
+  const pubkey = (data as { pubkey?: string } | null)?.pubkey;
+  return pubkey ? normalizePeerPubkey(pubkey) : null;
+}
+
+function extractPingPubkeyFromError(payload: unknown): string | null {
+  if (!Array.isArray(payload)) return null;
+  const msg = payload[1] as { env?: { pubkey?: string } } | undefined;
+  const pubkey = msg?.env?.pubkey;
+  return pubkey ? normalizePeerPubkey(pubkey) : null;
 }
 
 function generateRequestId(): string {
