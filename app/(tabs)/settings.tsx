@@ -1,7 +1,7 @@
 import { Button, Card, GradientBackground, HelpTooltip, RelayInput, SoundscapeSelector, VolumeControl } from '@/components/ui';
 import { useCredentials, useSigner, useCopyFeedback } from '@/hooks';
 import { audioService } from '@/services/audio';
-import { useAudioStore, useRelayStore } from '@/stores';
+import { useAudioStore, useLogStore, usePeerStore, useRelayStore, useSignerStore } from '@/stores';
 import type { SoundscapeId } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -84,6 +84,13 @@ export default function SettingsTab() {
             try {
               await stop();
               await deleteCredentials();
+
+              // Clear all session-specific data
+              useLogStore.getState().clearLogs();
+              usePeerStore.getState().clearPeers();
+              useSignerStore.getState().resetSession();
+              useRelayStore.getState().resetToDefaults();
+
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               router.replace('/onboarding');
             } catch (error) {
