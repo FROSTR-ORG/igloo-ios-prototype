@@ -1,0 +1,15 @@
+Igloo IOS is a mobile signer for Frostr, a threshold signing protocol built on nostr. It allows your iPhone to participate in distributed key signing groups, helping secure your nostr identity across multiple devices.
+
+The app features ambient soundscapes that play while your signer is active - choose from calming environments like ocean waves, rainfall, or forest sounds. These soundscapes provide an audible indicator that your signer is running and create a relaxing atmosphere while Igloo works in the background responding to signing requests from your group.
+
+Key Features:
+• Run a Frostr signer node on your iPhone
+• Respond to threshold signing requests from group members
+• Monitor peer status and connection health
+• Ambient soundscapes with multiple environments to choose from
+• Adjustable volume controls
+
+Igloo IOS works alongside other Frostr-compatible apps like Igloo Desktop, Igloo CLI, or Igloo Server and requires existing group credentials to operate.
+
+App Review Demo Mode:
+Onboarding -> How Igloo Works -> Enter Demo Mode to prefill full-access demo credentials.

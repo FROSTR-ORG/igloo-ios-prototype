@@ -85,6 +85,14 @@ export default function OnboardingHowto() {
           </Text>
         </Alert>
 
+        {/* Demo mode for review */}
+        <Alert variant="info" title="App Review Demo Mode" className="mb-6">
+          <Text className="text-sm text-blue-300 leading-5">
+            If you don't have credentials yet, you can enter demo mode to load
+            a review-ready group and share.
+          </Text>
+        </Alert>
+
         {/* External links */}
         <View className="mb-6">
           <Text className="text-sm font-medium text-gray-400 mb-3">
@@ -119,6 +127,17 @@ export default function OnboardingHowto() {
           size="lg"
           icon={<Keyboard size={20} color="#9ca3af" strokeWidth={2} />}
           onPress={() => router.push('/onboarding/manual')}
+        />
+        <Button
+          title="Enter Demo Mode"
+          variant="outline"
+          size="lg"
+          onPress={() =>
+            router.push({
+              pathname: '/onboarding/manual',
+              params: { demo: '1' },
+            })
+          }
         />
       </View>
     </SafeAreaView>

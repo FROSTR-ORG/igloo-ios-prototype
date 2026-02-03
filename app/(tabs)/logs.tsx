@@ -3,6 +3,7 @@ import { View, Text, Pressable, FlatList, type ListRenderItem } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   FileText,
+  Check,
   CheckSquare,
   Square,
   XCircle,
@@ -16,9 +17,10 @@ import {
   Copy,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import * as Clipboard from 'expo-clipboard';
+import { nip19, getEventHash } from 'nostr-tools';
 import { Card, Badge, Button, IconButton, GradientBackground, HelpTooltip } from '@/components/ui';
-import { useLogStore } from '@/stores';
+import { useCopyFeedback } from '@/hooks';
+import { useLogStore, useCredentialStore } from '@/stores';
 import type { LogEntry, LogLevel, LogCategory } from '@/types';
 
 const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
@@ -31,6 +33,8 @@ export default function LogsTab() {
   const clearLogs = useLogStore((s) => s.clearLogs);
   const setFilter = useLogStore((s) => s.setFilter);
   const setAutoScroll = useLogStore((s) => s.setAutoScroll);
+  const shareDetails = useCredentialStore((s) => s.shareDetails);
+  const groupPubkey = shareDetails?.groupPubkey;
 
   const flatListRef = useRef<FlatList>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -79,6 +83,7 @@ export default function LogsTab() {
     ({ item }) => (
       <LogEntryItem
         entry={item}
+        groupPubkey={groupPubkey}
         expanded={expandedId === item.id}
         onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
       />
@@ -240,21 +245,26 @@ function FilterChip({
 
 function LogEntryItem({
   entry,
+  groupPubkey,
   expanded,
   onToggle,
 }: {
   entry: LogEntry;
+  groupPubkey?: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const hasData = entry.data && Object.keys(entry.data).length > 0;
+  const signingSummary = entry.category === 'signing'
+    ? getSigningSummary(entry, groupPubkey)
+    : null;
+  const { copied: dataCopied, copy: copyData } = useCopyFeedback({ duration: 1500 });
 
   const handleCopyData = useCallback(async () => {
     if (entry.data) {
-      await Clipboard.setStringAsync(JSON.stringify(entry.data, null, 2));
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await copyData(JSON.stringify(entry.data, null, 2));
     }
-  }, [entry.data]);
+  }, [entry.data, copyData]);
 
   const renderLevelIcon = () => {
     const color = getLevelColor(entry.level);
@@ -291,7 +301,7 @@ function LogEntryItem({
 
   return (
     <Pressable onPress={hasData ? onToggle : undefined}>
-      <Card padding="sm">
+      <Card padding="sm" className={entry.category === 'signing' ? 'border-orange-500/40' : ''}>
         <View className="flex-row items-start">
           {/* Level Icon */}
           <View className="mr-2 mt-0.5">
@@ -319,8 +329,102 @@ function LogEntryItem({
               </Text>
             </View>
 
+            {signingSummary && (
+              <View className="mb-2 p-3 rounded-lg border border-orange-500/30 bg-orange-500/10">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-xs uppercase tracking-widest text-orange-300">
+                    {signingSummary.statusLabel}
+                  </Text>
+                  <Badge
+                    label={signingSummary.badgeLabel}
+                    size="sm"
+                    variant={signingSummary.badgeVariant}
+                  />
+                </View>
+
+                {signingSummary.noteContent && (
+                  <View className="mt-2">
+                    <Text className="text-base text-gray-100">
+                      {signingSummary.noteContent}
+                    </Text>
+                    {signingSummary.noteTruncated && (
+                      <Text className="text-xs text-gray-400 mt-1">
+                        Note truncated — expand data for full payload
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {(signingSummary.noteKind !== undefined ||
+                  signingSummary.createdAtLabel ||
+                  signingSummary.sessionType ||
+                  signingSummary.sessionHashCount !== undefined ||
+                  signingSummary.sessionHashPreview) && (
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    {signingSummary.noteKind !== undefined && (
+                      <MetaPill label={`Kind ${signingSummary.noteKind}`} />
+                    )}
+                    {signingSummary.createdAtLabel && (
+                      <MetaPill label={`Created ${signingSummary.createdAtLabel}`} />
+                    )}
+                    {signingSummary.sessionType && (
+                      <MetaPill label={`Type ${signingSummary.sessionType}`} />
+                    )}
+                    {signingSummary.sessionHashCount !== undefined && (
+                      <MetaPill label={`Hashes ${signingSummary.sessionHashCount}`} />
+                    )}
+                    {signingSummary.sessionHashPreview && (
+                      <MetaPill label={`Hash ${truncateId(signingSummary.sessionHashPreview)}`} />
+                    )}
+                  </View>
+                )}
+
+                {signingSummary.tags.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    {signingSummary.tags.map((tag) => (
+                      <MetaPill key={tag} label={tag} />
+                    ))}
+                  </View>
+                )}
+
+                {(signingSummary.sessionId || signingSummary.requestId) && (
+                  <View className="mt-2">
+                    {signingSummary.sessionId && (
+                      <Text className="text-[11px] text-gray-400 font-mono">
+                        session: {truncateId(signingSummary.sessionId)}
+                      </Text>
+                    )}
+                    {signingSummary.requestId && (
+                      <Text className="text-[11px] text-gray-400 font-mono">
+                        request: {truncateId(signingSummary.requestId)}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {(signingSummary.authorNpub || signingSummary.eventBech32) && (
+                  <View className="mt-2">
+                    {signingSummary.authorNpub && (
+                      <CopyRow label="author" value={signingSummary.authorNpub} />
+                    )}
+                    {signingSummary.eventBech32 && (
+                      <CopyRow
+                        label={`event (${signingSummary.eventEncoding ?? 'note'})`}
+                        value={signingSummary.eventBech32}
+                      />
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Message */}
-            <Text className="text-sm text-gray-100">{entry.message}</Text>
+            <View className="flex-row items-center">
+              <Text className="text-sm text-gray-100">{entry.message}</Text>
+              {entry.count && entry.count > 1 && (
+                <Text className="text-xs text-gray-500 ml-2">x{entry.count}</Text>
+              )}
+            </View>
 
             {/* Expanded Data */}
             {expanded && hasData && (
@@ -328,7 +432,11 @@ function LogEntryItem({
                 <View className="flex-row items-center justify-between mb-1">
                   <Text className="text-xs text-gray-500">Data</Text>
                   <Pressable onPress={handleCopyData} hitSlop={8}>
-                    <Copy size={12} color="#9ca3af" strokeWidth={2} />
+                    {dataCopied ? (
+                      <Check size={12} color="#4ade80" strokeWidth={2} />
+                    ) : (
+                      <Copy size={12} color="#9ca3af" strokeWidth={2} />
+                    )}
                   </Pressable>
                 </View>
                 <Text className="text-xs font-mono text-gray-400">
@@ -339,6 +447,43 @@ function LogEntryItem({
           </View>
         </View>
       </Card>
+    </Pressable>
+  );
+}
+
+function MetaPill({ label }: { label: string }) {
+  return (
+    <View className="px-2 py-0.5 rounded-full bg-gray-900/70 border border-gray-700/60">
+      <Text className="text-xs text-gray-300">{label}</Text>
+    </View>
+  );
+}
+
+function CopyRow({ label, value }: { label: string; value: string }) {
+  const { copied, copy } = useCopyFeedback({ duration: 1500 });
+  const handleCopy = useCallback(async (event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.();
+    await copy(value);
+  }, [copy, value]);
+
+  return (
+    <Pressable
+      onPress={handleCopy}
+      className="flex-row items-center justify-between py-1"
+    >
+      <View className="flex-row items-center flex-1 pr-2">
+        <Text className="text-[11px] text-gray-400 font-mono mr-1.5">
+          {label}:
+        </Text>
+        <Text className="text-[11px] text-gray-200 font-mono" numberOfLines={1}>
+          {truncateBech32(value)}
+        </Text>
+      </View>
+      {copied ? (
+        <Check size={12} color="#4ade80" strokeWidth={2} />
+      ) : (
+        <Copy size={12} color="#9ca3af" strokeWidth={2} />
+      )}
     </Pressable>
   );
 }
@@ -376,5 +521,252 @@ function formatTimestamp(timestamp: string): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+  });
+}
+
+function truncateId(value: string, front = 8, back = 6): string {
+  if (value.length <= front + back + 3) return value;
+  return `${value.slice(0, front)}...${value.slice(-back)}`;
+}
+
+function truncateBech32(value: string, front = 10, back = 8): string {
+  if (value.length <= front + back + 3) return value;
+  return `${value.slice(0, front)}...${value.slice(-back)}`;
+}
+
+function toNpub(pubkey: string): string | undefined {
+  try {
+    return nip19.npubEncode(pubkey);
+  } catch {
+    return undefined;
+  }
+}
+
+function toNevent(
+  eventId: string,
+  author?: string,
+  kind?: number
+): string | undefined {
+  try {
+    return nip19.neventEncode({
+      id: eventId,
+      author,
+      kind,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function toNote(eventId: string): string | undefined {
+  try {
+    return nip19.noteEncode(eventId);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeNostrPubkey(pubkey: string): string | undefined {
+  const trimmed = pubkey.trim().toLowerCase();
+  if (/^[0-9a-f]+$/.test(trimmed) === false) return undefined;
+  if (trimmed.length === 64) return trimmed;
+  if (trimmed.length === 66 && (trimmed.startsWith('02') || trimmed.startsWith('03'))) {
+    return trimmed.slice(2);
+  }
+  return undefined;
+}
+
+function getEventId(event: ReturnType<typeof parseNostrEvent>): string | undefined {
+  if (!event) return undefined;
+  if (typeof event.id === 'string') return event.id;
+  if (
+    typeof event.pubkey !== 'string' ||
+    typeof event.created_at !== 'number' ||
+    typeof event.kind !== 'number' ||
+    typeof event.content !== 'string'
+  ) {
+    return undefined;
+  }
+  const tags = Array.isArray(event.tags) ? event.tags : [];
+  try {
+    return getEventHash({
+      pubkey: event.pubkey,
+      created_at: event.created_at,
+      kind: event.kind,
+      tags,
+      content: event.content,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+type SigningSummary = {
+  statusLabel: string;
+  badgeLabel: string;
+  badgeVariant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple' | 'orange';
+  noteContent?: string;
+  noteTruncated: boolean;
+  noteKind?: number;
+  authorPubkey?: string;
+  authorNpub?: string;
+  eventBech32?: string;
+  eventEncoding?: 'nevent' | 'note';
+  createdAtLabel?: string;
+  sessionId?: string;
+  requestId?: string;
+  sessionType?: string;
+  sessionHashCount?: number;
+  sessionHashPreview?: string;
+  tags: string[];
+};
+
+function getSigningSummary(entry: LogEntry, groupPubkey?: string): SigningSummary {
+  const status = getSigningStatus(entry.message);
+  const data = entry.data ?? {};
+
+  const sessionContent =
+    typeof data.sessionContent === 'string' ? data.sessionContent : undefined;
+  const noteEvent = extractNostrEventFromEntry(data);
+  const noteContent = noteEvent?.content ?? sessionContent;
+  const contentPreview = noteContent ? truncateText(noteContent, 280) : null;
+
+  const createdAt =
+    noteEvent?.created_at ??
+    (typeof data.sessionStamp === 'number' ? data.sessionStamp : undefined);
+
+  const authorPubkey = noteEvent?.pubkey ?? groupPubkey;
+  const normalizedAuthorPubkey = authorPubkey ? normalizeNostrPubkey(authorPubkey) : undefined;
+
+  const authorNpub = normalizedAuthorPubkey ? toNpub(normalizedAuthorPubkey) : undefined;
+  const eventIdFromEvent = getEventId(noteEvent);
+  const eventIdFromHash =
+    typeof data.sessionHashPreview === 'string' ? data.sessionHashPreview : undefined;
+  const eventId = eventIdFromEvent ?? eventIdFromHash;
+  const eventKind =
+    noteEvent?.kind ??
+    (typeof data.kind === 'number' ? data.kind : undefined);
+  const eventBech32 = eventId
+    ? toNevent(eventId, normalizedAuthorPubkey, eventKind) ?? toNote(eventId)
+    : undefined;
+  const eventEncoding = eventBech32?.startsWith('nevent1')
+    ? 'nevent'
+    : eventBech32?.startsWith('note1')
+      ? 'note'
+      : undefined;
+
+  return {
+    statusLabel: status.label,
+    badgeLabel: status.badge,
+    badgeVariant: status.variant,
+    noteContent: contentPreview?.text,
+    noteTruncated: contentPreview?.truncated ?? false,
+    noteKind:
+      noteEvent?.kind ??
+      (typeof data.kind === 'number' ? data.kind : undefined),
+    authorPubkey,
+    authorNpub,
+    eventBech32,
+    eventEncoding,
+    createdAtLabel: createdAt ? formatEpochSeconds(createdAt) : undefined,
+    sessionId: typeof data.sessionId === 'string' ? data.sessionId : undefined,
+    requestId: typeof data.requestId === 'string' ? data.requestId : undefined,
+    sessionType: typeof data.sessionType === 'string' ? data.sessionType : undefined,
+    sessionHashCount:
+      typeof data.sessionHashCount === 'number' ? data.sessionHashCount : undefined,
+    sessionHashPreview:
+      typeof data.sessionHashPreview === 'string' ? data.sessionHashPreview : undefined,
+    tags: extractTagLabels(noteEvent?.tags),
+  };
+}
+
+function getSigningStatus(message: string): {
+  label: string;
+  badge: string;
+  variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple' | 'orange';
+} {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('received signing request')) {
+    return { label: 'Signing Request', badge: 'request', variant: 'orange' };
+  }
+  if (normalized.includes('signing request completed') || normalized.includes('finalized')) {
+    return { label: 'Signature Complete', badge: 'complete', variant: 'success' };
+  }
+  if (normalized.includes('responses from peers')) {
+    return { label: 'Peer Responses', badge: 'responses', variant: 'info' };
+  }
+  if (normalized.includes('rejected')) {
+    return { label: 'Signing Rejected', badge: 'rejected', variant: 'warning' };
+  }
+  if (normalized.includes('failed') || normalized.includes('error')) {
+    return { label: 'Signing Failed', badge: 'failed', variant: 'error' };
+  }
+  return { label: 'Signing Event', badge: 'signing', variant: 'orange' };
+}
+
+function parseNostrEvent(content: string): {
+  kind?: number;
+  pubkey?: string;
+  created_at?: number;
+  content?: string;
+  tags?: string[][];
+  id?: string;
+} | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.kind !== 'number' || typeof parsed.content !== 'string') return null;
+    return parsed as {
+      kind?: number;
+      pubkey?: string;
+      created_at?: number;
+      content?: string;
+      tags?: string[][];
+      id?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractNostrEventFromEntry(
+  data: Record<string, unknown>
+): ReturnType<typeof parseNostrEvent> {
+  const sessionContent =
+    typeof data.sessionContent === 'string' ? data.sessionContent : undefined;
+  const fromSession = sessionContent ? parseNostrEvent(sessionContent) : null;
+  if (fromSession) return fromSession;
+
+  const payload = data.payload as { env?: { content?: string } } | undefined;
+  const envContent = payload?.env?.content;
+  if (typeof envContent === 'string') {
+    const fromEnv = parseNostrEvent(envContent);
+    if (fromEnv) return fromEnv;
+  }
+
+  return null;
+}
+
+
+function extractTagLabels(tags?: string[][]): string[] {
+  if (!Array.isArray(tags)) return [];
+  const labels = tags
+    .filter((tag) => Array.isArray(tag) && tag.length > 1)
+    .map((tag) => (tag[0] === 't' ? `#${tag[1]}` : `${tag[0]}:${tag[1]}`));
+  return labels.slice(0, 6);
+}
+
+function truncateText(text: string, maxLength: number): { text: string; truncated: boolean } {
+  if (text.length <= maxLength) return { text, truncated: false };
+  return { text: `${text.slice(0, maxLength)}…`, truncated: true };
+}
+
+function formatEpochSeconds(epochSeconds: number): string {
+  const date = new Date(epochSeconds * 1000);
+  return date.toLocaleString([], {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }

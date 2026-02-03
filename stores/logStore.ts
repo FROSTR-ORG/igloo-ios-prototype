@@ -6,8 +6,45 @@ const DEFAULT_MAX_ENTRIES = 500;
 
 const DEFAULT_FILTER: LogFilter = {
   levels: ['debug', 'info', 'warn', 'error'],
-  categories: ['signing', 'relay', 'peer', 'echo', 'system'],
+  categories: ['signing', 'relay', 'peer', 'echo'],
 };
+
+function stableStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+
+  const stringify = (input: unknown): unknown => {
+    if (input === null || typeof input !== 'object') {
+      return input;
+    }
+
+    if (seen.has(input as object)) {
+      return '[Circular]';
+    }
+    seen.add(input as object);
+
+    if (Array.isArray(input)) {
+      return input.map((item) => stringify(item));
+    }
+
+    const obj = input as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(obj).sort()) {
+      sorted[key] = stringify(obj[key]);
+    }
+    return sorted;
+  };
+
+  try {
+    return JSON.stringify(stringify(value));
+  } catch {
+    return String(value);
+  }
+}
+
+function getEntryKey(entry: Pick<LogEntry, 'level' | 'category' | 'message' | 'data'>): string {
+  const dataKey = entry.data ? stableStringify(entry.data) : '';
+  return `${entry.level}|${entry.category}|${entry.message}|${dataKey}`;
+}
 
 export const useLogStore = create<LogStoreState>()((set, get) => ({
   // State (in-memory only - not persisted)
@@ -19,6 +56,24 @@ export const useLogStore = create<LogStoreState>()((set, get) => ({
   // Actions
   addEntry: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     set((state) => {
+      const entryKey = getEntryKey(entry);
+      const existingIndex = state.entries.findIndex(
+        (existing) => getEntryKey(existing) === entryKey
+      );
+
+      if (existingIndex >= 0) {
+        const existing = state.entries[existingIndex];
+        const updatedEntry: LogEntry = {
+          ...existing,
+          count: (existing.count ?? 1) + 1,
+          timestamp: new Date().toISOString(),
+        };
+
+        const entries = [...state.entries];
+        entries.splice(existingIndex, 1);
+        return { entries: [updatedEntry, ...entries] };
+      }
+
       const newEntry: LogEntry = {
         ...entry,
         id: nanoid(),

@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Alert, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Info, ClipboardPaste } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Button, Input, Card } from '@/components/ui';
 import { useCredentials } from '@/hooks';
+import { DEMO_CREDENTIALS } from '@/constants/demoCredentials';
 
 export default function OnboardingManual() {
   const [shareCredential, setShareCredential] = useState('');
@@ -15,8 +16,23 @@ export default function OnboardingManual() {
   const [groupError, setGroupError] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
   const { validate, saveCredentials } = useCredentials();
+  const { demo } = useLocalSearchParams<{ demo?: string }>();
+  const hasPrefilledDemo = useRef(false);
+  const isDemoMode = demo === '1' || demo === 'true';
 
-  const validateInputs = () => {
+  useEffect(() => {
+    if (!isDemoMode || hasPrefilledDemo.current) {
+      return;
+    }
+
+    setShareCredential(DEMO_CREDENTIALS.share);
+    setGroupCredential(DEMO_CREDENTIALS.group);
+    setShareError(undefined);
+    setGroupError(undefined);
+    hasPrefilledDemo.current = true;
+  }, [isDemoMode]);
+
+  const validateInputs = (shareValue = shareCredential, groupValue = groupCredential) => {
     let hasError = false;
 
     // Reset errors
@@ -24,26 +40,26 @@ export default function OnboardingManual() {
     setGroupError(undefined);
 
     // Validate share
-    if (!shareCredential.trim()) {
+    if (!shareValue.trim()) {
       setShareError('Share credential is required');
       hasError = true;
-    } else if (!shareCredential.trim().startsWith('bfshare')) {
+    } else if (!shareValue.trim().startsWith('bfshare')) {
       setShareError('Must be a valid bfshare credential');
       hasError = true;
     }
 
     // Validate group
-    if (!groupCredential.trim()) {
+    if (!groupValue.trim()) {
       setGroupError('Group credential is required');
       hasError = true;
-    } else if (!groupCredential.trim().startsWith('bfgroup')) {
+    } else if (!groupValue.trim().startsWith('bfgroup')) {
       setGroupError('Must be a valid bfgroup credential');
       hasError = true;
     }
 
     // Full validation
     if (!hasError) {
-      const validation = validate(shareCredential.trim(), groupCredential.trim());
+      const validation = validate(shareValue.trim(), groupValue.trim());
       if (!validation.shareValid) {
         setShareError(validation.shareError || 'Invalid share credential');
         hasError = true;
@@ -76,7 +92,10 @@ export default function OnboardingManual() {
   };
 
   const handleSubmit = async () => {
-    if (!validateInputs()) {
+    const shareValue = shareCredential.trim();
+    const groupValue = groupCredential.trim();
+
+    if (!validateInputs(shareValue, groupValue)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -84,7 +103,7 @@ export default function OnboardingManual() {
     setIsLoading(true);
 
     try {
-      const result = await saveCredentials(shareCredential.trim(), groupCredential.trim());
+      const result = await saveCredentials(shareValue, groupValue);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (result.echoSent) {
@@ -132,6 +151,18 @@ export default function OnboardingManual() {
           contentContainerClassName="p-4"
           keyboardShouldPersistTaps="handled"
         >
+          {isDemoMode && (
+            <Card variant="outlined" className="mb-4 bg-blue-900/20 border-blue-800">
+              <View className="flex-row items-start">
+                <Info size={18} color="#60a5fa" strokeWidth={2} />
+                <Text className="flex-1 ml-3 text-sm text-blue-300">
+                  Demo mode is enabled. Credentials are prefilled below.
+                  Tap Save Credentials to continue.
+                </Text>
+              </View>
+            </Card>
+          )}
+
           {/* Info Card */}
           <Card variant="outlined" className="mb-6 bg-blue-900/20 border-blue-800">
             <View className="flex-row items-start">

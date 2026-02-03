@@ -68,6 +68,9 @@ export const usePeerStore = create<PeerStoreState>()(
             displayName: existing?.displayName ?? peer.displayName,
             allowSend: existing?.allowSend ?? peer.allowSend,
             allowReceive: existing?.allowReceive ?? peer.allowReceive,
+            status: existing?.status ?? peer.status,
+            lastSeen: existing?.lastSeen ?? peer.lastSeen,
+            latency: existing?.latency ?? peer.latency,
           };
         }
         set({ peers: peersRecord });

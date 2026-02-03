@@ -136,6 +136,7 @@ export interface LogEntry {
   category: LogCategory;
   message: string;
   data?: Record<string, unknown>;
+  count?: number;
 }
 
 export interface LogFilter {

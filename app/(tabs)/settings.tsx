@@ -1,13 +1,13 @@
 import { Button, Card, GradientBackground, HelpTooltip, RelayInput, SoundscapeSelector, VolumeControl } from '@/components/ui';
-import { useCredentials, useSigner } from '@/hooks';
+import { useCredentials, useSigner, useCopyFeedback } from '@/hooks';
 import { audioService } from '@/services/audio';
-import { useAudioStore, useRelayStore } from '@/stores';
+import { useAudioStore, useLogStore, usePeerStore, useRelayStore, useSignerStore } from '@/stores';
 import type { SoundscapeId } from '@/types';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import {
   AlertTriangle,
+  Check,
   Copy,
   Info,
   Music,
@@ -25,6 +25,7 @@ export default function SettingsTab() {
   const { shareDetails, deleteCredentials } = useCredentials();
   const relays = useRelayStore((s) => s.relays);
   const setRelays = useRelayStore((s) => s.setRelays);
+  const { copied: groupCopied, copy: copyGroup } = useCopyFeedback();
 
   // Audio preferences (persisted)
   const volume = useAudioStore((s) => s.volume);
@@ -83,6 +84,13 @@ export default function SettingsTab() {
             try {
               await stop();
               await deleteCredentials();
+
+              // Clear all session-specific data
+              useLogStore.getState().clearLogs();
+              usePeerStore.getState().clearPeers();
+              useSignerStore.getState().resetSession();
+              useRelayStore.getState().resetToDefaults();
+
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               router.replace('/onboarding');
             } catch (error) {
@@ -99,10 +107,9 @@ export default function SettingsTab() {
 
   const handleCopyGroupPubkey = useCallback(async () => {
     if (shareDetails?.groupPubkey) {
-      await Clipboard.setStringAsync(shareDetails.groupPubkey);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await copyGroup(shareDetails.groupPubkey);
     }
-  }, [shareDetails]);
+  }, [shareDetails, copyGroup]);
 
   return (
     <GradientBackground>
@@ -212,6 +219,7 @@ export default function SettingsTab() {
                       label="Group Pubkey"
                       value={truncatePubkey(shareDetails.groupPubkey)}
                       copyable
+                      copied={groupCopied}
                       isLast
                     />
                   </Pressable>
@@ -273,11 +281,13 @@ function InfoRow({
   label,
   value,
   copyable = false,
+  copied = false,
   isLast = false,
 }: {
   label: string;
   value: string;
   copyable?: boolean;
+  copied?: boolean;
   isLast?: boolean;
 }) {
   return (
@@ -291,7 +301,11 @@ function InfoRow({
         <Text className="text-sm font-medium text-gray-100">{value}</Text>
         {copyable && (
           <View className="ml-1.5">
-            <Copy size={12} color="#9ca3af" strokeWidth={2} />
+            {copied ? (
+              <Check size={12} color="#4ade80" strokeWidth={2} />
+            ) : (
+              <Copy size={12} color="#9ca3af" strokeWidth={2} />
+            )}
           </View>
         )}
       </View>
