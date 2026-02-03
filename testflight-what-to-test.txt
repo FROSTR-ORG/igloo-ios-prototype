@@ -1,0 +1,30 @@
+BEFORE YOU START:
+You can either use Demo Mode or your own Frostr group credentials (bfshare + bfgroup) from another Frostr app like Igloo Desktop or Igloo CLI. This app cannot create new groups.
+
+SETUP:
+Option A - Demo Mode (recommended for review):
+1. Open the app -> "Get Started" -> "How Igloo Works"
+2. Tap "Enter Demo Mode"
+3. Tap "Save Credentials" to load the demo group/share and continue
+
+Option B - Your Credentials:
+1. Open the app and tap "Scan QR Code" or "Enter Manually"
+2. Import your share and group credentials
+3. Start the signer and select a soundscape
+
+PLEASE TEST:
+• Background reliability - Does the signer stay connected when you switch apps or lock your phone?
+• Signing requests - Initiate a signature from another device in your group. Does Igloo respond?
+• Peer status - Are your group peers showing online/offline correctly?
+• Soundscape playback - Do the ambient sounds play smoothly? Any audio glitches?
+• Phone calls/interruptions - Does the app resume properly after a call?
+
+KNOWN LIMITATIONS:
+• Cannot initiate signatures (respond only)
+• Requires another Frostr app to generate credentials
+
+FEEDBACK WELCOME:
+• Battery usage concerns
+• Any crashes or freezes
+• Suggestions for additional soundscapes
+• UI/UX improvements

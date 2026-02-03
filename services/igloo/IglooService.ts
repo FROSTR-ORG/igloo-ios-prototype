@@ -85,6 +85,24 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
           ) {
             return;
           }
+          const tag = extractSignedMessageTag(data);
+          if (tag?.startsWith('/sign/')) {
+            const session = extractSigningSessionDetails(data);
+            const pubkey = extractSignedMessagePubkey(data);
+            this.log(level as LogLevel, 'signing', `Signing message ${tag}`, {
+              tag,
+              pubkey,
+              sessionId: session.sessionId,
+              sessionType: session.sessionType,
+              sessionStamp: session.sessionStamp,
+              sessionMembers: session.sessionMembers,
+              sessionHashCount: session.sessionHashCount,
+              sessionHashPreview: session.sessionHashPreview,
+              sessionContent: session.sessionContent ?? undefined,
+              payload: data as Record<string, unknown>,
+            });
+            return;
+          }
           this.log(level as LogLevel, 'system', message, data as Record<string, unknown>);
         },
       };
@@ -711,11 +729,14 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 
     // Signing request received
     const handleSigningRequest = (data: unknown) => {
+      const meta = extractSigningEventMeta(data);
+      const session = extractSigningSessionDetails(data);
+      const requestId = meta.id || generateRequestId();
       const request: SigningRequest = {
-        id: generateRequestId(),
-        pubkey: (data as { pubkey?: string })?.pubkey || 'unknown',
+        id: requestId,
+        pubkey: meta.pubkey || 'unknown',
         timestamp: new Date(),
-        eventKind: (data as { kind?: number })?.kind,
+        eventKind: meta.kind,
         status: 'pending',
       };
 
@@ -723,44 +744,149 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       this.pendingRequests.set(request.id, request);
 
       this.log('info', 'signing', 'Received signing request', {
-        id: request.id,
-        pubkey: truncatePubkey(request.pubkey),
+        requestId: request.id,
+        pubkey: request.pubkey,
         kind: request.eventKind,
+        sessionId: session.sessionId,
+        sessionType: session.sessionType,
+        sessionStamp: session.sessionStamp,
+        sessionMembers: session.sessionMembers,
+        sessionHashCount: session.sessionHashCount,
+        sessionHashPreview: session.sessionHashPreview,
+        sessionContent: session.sessionContent ?? undefined,
       });
 
       this.emit('signing:request', request);
     };
-    registerHandler('/sig/handler/req', handleSigningRequest);
+    registerHandler('/sign/handler/req', handleSigningRequest);
 
     // Signing completed
     const handleSigningComplete = (data: unknown) => {
+      const meta = extractSigningEventMeta(data);
+      const session = extractSigningSessionDetails(data);
       // Try to correlate with pending request
       const matchedRequest = this.findAndRemovePendingRequest(data);
+      const fallbackRequestId = meta.id || 'unknown';
       const result: SigningResult = {
-        requestId: matchedRequest?.id || 'unknown',
+        requestId: matchedRequest?.id || fallbackRequestId,
         success: true,
       };
 
       this.log('info', 'signing', 'Signing request completed', {
         requestId: result.requestId,
-        ...(data as Record<string, unknown>),
+        pubkey: meta.pubkey,
+        kind: meta.kind,
+        sessionId: session.sessionId,
+        sessionType: session.sessionType,
+        sessionStamp: session.sessionStamp,
+        sessionHashPreview: session.sessionHashPreview,
       });
       this.emit('signing:complete', result);
     };
-    registerHandler('/sig/handler/ret', handleSigningComplete);
+    registerHandler('/sign/handler/res', handleSigningComplete);
 
     // Signing error
     const handleSigningError = (error: unknown) => {
+      const meta = extractSigningEventMeta(error);
+      const session = extractSigningSessionDetails(error);
       // Try to correlate with pending request
       const matchedRequest = this.findAndRemovePendingRequest(error);
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorMessage = Array.isArray(error)
+        ? String(error[0])
+        : error instanceof Error
+          ? error.message
+          : String(error);
+      const errorObj = error instanceof Error ? error : new Error(errorMessage);
       this.log('error', 'signing', 'Signing error', {
-        requestId: matchedRequest?.id,
-        error: errorObj.message,
+        requestId: matchedRequest?.id || meta.id,
+        pubkey: meta.pubkey,
+        kind: meta.kind,
+        error: errorMessage,
+        sessionId: session.sessionId,
+        sessionType: session.sessionType,
+        sessionStamp: session.sessionStamp,
+        sessionMembers: session.sessionMembers,
+        sessionHashCount: session.sessionHashCount,
+        sessionHashPreview: session.sessionHashPreview,
+        sessionContent: session.sessionContent ?? undefined,
       });
-      this.emit('signing:error', errorObj, matchedRequest?.id);
+      this.emit('signing:error', errorObj, matchedRequest?.id || meta.id);
     };
-    registerHandler('/sig/handler/err', handleSigningError);
+    registerHandler('/sign/handler/rej', handleSigningError);
+
+    // Signing request sent (sender) responses received
+    const handleSigningSenderRes = (payload: unknown) => {
+      const messages = Array.isArray(payload)
+        ? (payload as Array<{ data?: { sid?: string }; env?: { pubkey?: string } }>)
+        : [];
+      const sessionId = messages[0]?.data?.sid;
+      const peerList = formatPubkeyList(messages.map((msg) => msg?.env?.pubkey));
+      this.log('info', 'signing', 'Received signing responses from peers', {
+        sessionId,
+        peerCount: messages.length,
+        peerPubkeys: peerList.sample,
+        peerPubkeysTruncated: peerList.truncated,
+      });
+    };
+    registerHandler('/sign/sender/res', handleSigningSenderRes);
+
+    // Signing request finalized (sender)
+    const handleSigningSenderRet = (payload: unknown) => {
+      const sessionId = Array.isArray(payload) ? payload[0] : undefined;
+      const signatures = Array.isArray(payload) ? payload[1] : undefined;
+      const signatureCount = Array.isArray(signatures) ? signatures.length : undefined;
+      const signaturePubkeys = Array.isArray(signatures)
+        ? signatures.map((entry) => (Array.isArray(entry) ? entry[1] : undefined))
+        : [];
+      const peerList = formatPubkeyList(signaturePubkeys);
+      this.log('info', 'signing', 'Signing request finalized', {
+        sessionId,
+        signatureCount,
+        signerPubkeys: peerList.sample,
+        signerPubkeysTruncated: peerList.truncated,
+      });
+    };
+    registerHandler('/sign/sender/ret', handleSigningSenderRet);
+
+    // Signing request rejected before finalize (sender)
+    const handleSigningSenderRej = (payload: unknown) => {
+      const reason = Array.isArray(payload) ? payload[0] : payload;
+      const session = Array.isArray(payload) ? payload[1] : undefined;
+      const sessionDetails = extractSigningSessionDetails(session);
+      const sessionId = sessionDetails.sessionId;
+      this.log('warn', 'signing', 'Signing request rejected', {
+        sessionId,
+        reason: reason ? String(reason) : undefined,
+        sessionType: sessionDetails.sessionType,
+        sessionStamp: sessionDetails.sessionStamp,
+        sessionMembers: sessionDetails.sessionMembers,
+        sessionHashCount: sessionDetails.sessionHashCount,
+        sessionHashPreview: sessionDetails.sessionHashPreview,
+        sessionContent: sessionDetails.sessionContent ?? undefined,
+      });
+    };
+    registerHandler('/sign/sender/rej', handleSigningSenderRej);
+
+    // Signing request failed during finalize (sender)
+    const handleSigningSenderErr = (payload: unknown) => {
+      const reason = Array.isArray(payload) ? payload[0] : payload;
+      const messages = Array.isArray(payload) ? payload[1] : undefined;
+      const sessionId = Array.isArray(messages)
+        ? (messages[0] as { data?: { sid?: string } } | undefined)?.data?.sid
+        : undefined;
+      const peerList = formatPubkeyList(
+        Array.isArray(messages)
+          ? messages.map((msg) => (msg as { env?: { pubkey?: string } } | undefined)?.env?.pubkey)
+          : []
+      );
+      this.log('error', 'signing', 'Signing request failed', {
+        sessionId,
+        reason: reason ? String(reason) : undefined,
+        peerPubkeys: peerList.sample,
+        peerPubkeysTruncated: peerList.truncated,
+      });
+    };
+    registerHandler('/sign/sender/err', handleSigningSenderErr);
 
     // Peer ping events (inbound/outbound)
     // Build known peers set once at registration time for efficient lookup.
@@ -814,12 +940,48 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     registerHandler('closed', handleNodeClosed);
 
     // Debug/info messages
-    const handleDebug = (message: unknown) => {
+    const handleDebug = (message: unknown, data?: unknown) => {
+      const tag = extractSignedMessageTag(data);
+      if (tag?.startsWith('/sign/')) {
+        const session = extractSigningSessionDetails(data);
+        const pubkey = extractSignedMessagePubkey(data);
+        this.log('debug', 'signing', `Signing message ${tag}`, {
+          tag,
+          pubkey,
+          sessionId: session.sessionId,
+          sessionType: session.sessionType,
+          sessionStamp: session.sessionStamp,
+          sessionMembers: session.sessionMembers,
+          sessionHashCount: session.sessionHashCount,
+          sessionHashPreview: session.sessionHashPreview,
+          sessionContent: session.sessionContent ?? undefined,
+          payload: data as Record<string, unknown>,
+        });
+        return;
+      }
       this.log('debug', 'system', String(message));
     };
     registerHandler('debug', handleDebug);
 
-    const handleInfo = (message: unknown) => {
+    const handleInfo = (message: unknown, data?: unknown) => {
+      const tag = extractSignedMessageTag(data);
+      if (tag?.startsWith('/sign/')) {
+        const session = extractSigningSessionDetails(data);
+        const pubkey = extractSignedMessagePubkey(data);
+        this.log('info', 'signing', `Signing message ${tag}`, {
+          tag,
+          pubkey,
+          sessionId: session.sessionId,
+          sessionType: session.sessionType,
+          sessionStamp: session.sessionStamp,
+          sessionMembers: session.sessionMembers,
+          sessionHashCount: session.sessionHashCount,
+          sessionHashPreview: session.sessionHashPreview,
+          sessionContent: session.sessionContent ?? undefined,
+          payload: data as Record<string, unknown>,
+        });
+        return;
+      }
       this.log('info', 'system', String(message));
     };
     registerHandler('info', handleInfo);
@@ -858,8 +1020,18 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       return undefined;
     }
 
-    // Try to extract pubkey from the event data for matching
-    const eventPubkey = (data as { pubkey?: string })?.pubkey;
+    // Prefer matching by request id when available
+    const eventMeta = extractSigningEventMeta(data);
+    const eventId = eventMeta.id;
+    const eventPubkey = eventMeta.pubkey;
+
+    if (eventId && this.pendingRequests.has(eventId)) {
+      const request = this.pendingRequests.get(eventId);
+      if (request) {
+        this.pendingRequests.delete(eventId);
+        return request;
+      }
+    }
 
     if (eventPubkey) {
       // Find a pending request with matching pubkey
@@ -977,6 +1149,139 @@ function extractPingPubkeyFromError(payload: unknown): string | null {
   const msg = payload[1] as { env?: { pubkey?: string } } | undefined;
   const pubkey = msg?.env?.pubkey;
   return pubkey ? normalizePeerPubkey(pubkey) : null;
+}
+
+function formatPubkeyList(
+  pubkeys: Array<string | undefined>,
+  maxCount = 5
+): { sample: string[]; truncated: boolean } {
+  const unique = Array.from(new Set(pubkeys.filter((key): key is string => !!key)));
+  const sample = unique.slice(0, maxCount).map(truncatePubkey);
+  return { sample, truncated: unique.length > maxCount };
+}
+
+function extractSigningEventMeta(payload: unknown): { id?: string; pubkey?: string; kind?: number } {
+  if (!payload) return {};
+  if (Array.isArray(payload)) {
+    return extractSigningEventMeta(payload[1]);
+  }
+  if (typeof payload !== 'object') return {};
+  const message = payload as { id?: string; env?: { pubkey?: string; kind?: number } };
+  return {
+    id: typeof message.id === 'string' ? message.id : undefined,
+    pubkey: message.env?.pubkey,
+    kind: message.env?.kind,
+  };
+}
+
+function extractSigningPayload(payload: unknown): unknown {
+  if (!payload) return undefined;
+  if (Array.isArray(payload)) {
+    return extractSigningPayload(payload[1]);
+  }
+  if (typeof payload !== 'object') return undefined;
+  if ('data' in payload) {
+    const data = (payload as { data?: unknown }).data;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return data;
+      }
+    }
+    return data;
+  }
+  return payload;
+}
+
+function findNestedKey(payload: unknown, key: string, maxDepth = 4): unknown {
+  const seen = new WeakSet<object>();
+
+  const search = (value: unknown, depth: number): unknown => {
+    if (!value || depth < 0) return undefined;
+    if (typeof value !== 'object') return undefined;
+
+    if (seen.has(value as object)) return undefined;
+    seen.add(value as object);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = search(item, depth - 1);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    }
+
+    const obj = value as Record<string, unknown>;
+    if (key in obj) return obj[key];
+
+    for (const entry of Object.values(obj)) {
+      const found = search(entry, depth - 1);
+      if (found !== undefined) return found;
+    }
+
+    return undefined;
+  };
+
+  return search(payload, maxDepth);
+}
+
+function extractSignedMessageTag(payload: unknown): string | undefined {
+  const tag = findNestedKey(payload, 'tag');
+  return typeof tag === 'string' ? tag : undefined;
+}
+
+function extractSignedMessagePubkey(payload: unknown): string | undefined {
+  const env = findNestedKey(payload, 'env') as { pubkey?: string } | undefined;
+  if (env?.pubkey) return env.pubkey;
+  const pubkey = findNestedKey(payload, 'pubkey');
+  return typeof pubkey === 'string' ? pubkey : undefined;
+}
+
+function extractSigningSessionDetails(payload: unknown): {
+  sessionId?: string;
+  sessionType?: string;
+  sessionStamp?: number;
+  sessionContent?: string | null;
+  sessionMembers?: number[];
+  sessionHashCount?: number;
+  sessionHashPreview?: string;
+} {
+  const data = extractSigningPayload(payload);
+  if (!data || typeof data !== 'object') return {};
+  const session = data as {
+    sid?: string;
+    type?: string;
+    stamp?: number;
+    content?: string | null;
+    members?: number[];
+    hashes?: unknown[];
+    psigs?: unknown[];
+  };
+  const firstHash = Array.isArray(session.hashes)
+    ? (session.hashes[0] as unknown[] | undefined)
+    : undefined;
+  const hashFromHashes =
+    Array.isArray(firstHash) && typeof firstHash[0] === 'string'
+      ? firstHash[0]
+      : undefined;
+  const firstPsig = Array.isArray(session.psigs)
+    ? (session.psigs[0] as unknown[] | undefined)
+    : undefined;
+  const hashFromPsigs =
+    Array.isArray(firstPsig) && typeof firstPsig[0] === 'string'
+      ? firstPsig[0]
+      : undefined;
+  const hashPreview = hashFromHashes ?? hashFromPsigs;
+  return {
+    sessionId: session.sid,
+    sessionType: session.type,
+    sessionStamp: session.stamp,
+    sessionContent: session.content ?? undefined,
+    sessionMembers: Array.isArray(session.members) ? session.members : undefined,
+    sessionHashCount: Array.isArray(session.hashes) ? session.hashes.length : undefined,
+    sessionHashPreview: hashPreview,
+  };
 }
 
 function generateRequestId(): string {
