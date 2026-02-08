@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert as RNAlert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -27,8 +27,28 @@ const EXTERNAL_LINKS = [
 ];
 
 export default function OnboardingHowto() {
-  const openUrl = (url: string) => {
-    Linking.openURL(url);
+  const openUrl = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        console.warn(`Cannot open URL: ${url}`);
+        RNAlert.alert(
+          'Cannot Open Link',
+          'This link cannot be opened on your device.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+      RNAlert.alert(
+        'Error Opening Link',
+        'Unable to open the link. Please try again later.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   return (
@@ -88,7 +108,7 @@ export default function OnboardingHowto() {
         {/* Demo mode for review */}
         <Alert variant="info" title="App Review Demo Mode" className="mb-6">
           <Text className="text-sm text-blue-300 leading-5">
-            If you don't have credentials yet, you can enter demo mode to load
+            If you do not have credentials yet, you can enter demo mode to load
             a review-ready group and share.
           </Text>
         </Alert>

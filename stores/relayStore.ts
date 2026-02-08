@@ -6,7 +6,7 @@ import { DEFAULT_RELAYS } from '@/types';
 
 export const useRelayStore = create<RelayStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // State
       relays: [...DEFAULT_RELAYS],
 
@@ -24,8 +24,11 @@ export const useRelayStore = create<RelayStoreState>()(
       },
 
       removeRelay: (relay: string) => {
+        const normalized = normalizeRelayUrl(relay);
+        if (!normalized) return;
+
         set((state) => ({
-          relays: state.relays.filter((r) => r !== relay),
+          relays: state.relays.filter((r) => r !== normalized),
         }));
       },
 

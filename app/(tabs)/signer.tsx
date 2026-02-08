@@ -26,7 +26,6 @@ import {
   HelpTooltip,
   Collapsible,
   CredentialDisplay,
-  CompactCredential,
   GradientBackground,
 } from '@/components/ui';
 import { useSigner, useIgloo, useCopyFeedback } from '@/hooks';
@@ -60,10 +59,10 @@ export default function SignerTab() {
   const setVolume = useAudioStore((s) => s.setVolume);
   const previousVolume = useRef(volume > 0 ? volume : 0.3);
 
-  const [uptime, setUptime] = useState(0);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [decodedGroup, setDecodedGroup] = useState<object | null>(null);
   const [decodedShare, setDecodedShare] = useState<object | null>(null);
+
 
   // Load credentials on mount
   useEffect(() => {
@@ -88,19 +87,6 @@ export default function SignerTab() {
     };
   }, [decodeGroupCredential, decodeShareCredential]);
 
-  // Update uptime every second when running
-  useEffect(() => {
-    if (!isRunning) {
-      setUptime(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setUptime(getUptime());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isRunning, getUptime]);
 
   const handleToggle = useCallback(async () => {
     try {
@@ -124,7 +110,7 @@ export default function SignerTab() {
     if (shareDetails?.groupPubkey) {
       await copyPubkey(shareDetails.groupPubkey);
     }
-  }, [shareDetails?.groupPubkey, copyPubkey]);
+  }, [shareDetails, copyPubkey]);
 
   const handleMuteToggle = useCallback(async () => {
     await Haptics.selectionAsync();
@@ -361,10 +347,10 @@ export default function SignerTab() {
               />
             </View>
             <View className="flex-row justify-between">
-              <InfoItem
-                label="Uptime"
-                value={isRunning ? formatUptime(uptime) : '-'}
-              />
+              <View className="items-center">
+                <Text className="text-xs text-gray-400 mb-1">Uptime</Text>
+                <UptimeDisplay getUptime={getUptime} isRunning={isRunning} />
+              </View>
               <InfoItem
                 label="Requests"
                 value={`${signingRequestsCompleted}/${signingRequestsReceived}`}
@@ -444,8 +430,9 @@ export default function SignerTab() {
 }
 
 function SignerStatusIndicator({ status }: { status: SignerStatus }) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const spinAnim = useRef(new Animated.Value(0)).current;
+  // Use useState with lazy initialization for Animated.Values (React Compiler compatible)
+  const [pulseAnim] = useState(() => new Animated.Value(1));
+  const [spinAnim] = useState(() => new Animated.Value(0));
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const spinAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -586,6 +573,41 @@ function formatUptime(seconds: number): string {
 function truncatePubkey(pubkey: string): string {
   if (pubkey.length <= 16) return pubkey;
   return `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
+}
+
+/**
+ * Isolated component that re-renders every second to display uptime.
+ * Prevents full SignerTab re-renders.
+ */
+function UptimeDisplay({
+  getUptime,
+  isRunning
+}: {
+  getUptime: () => number;
+  isRunning: boolean
+}) {
+  // Use a tick counter to force re-renders - linter compliant pattern
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!isRunning) return;
+
+    // Trigger re-render every second by updating tick counter
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  // Derive uptime on each render from parent's getUptime
+  const uptime = isRunning ? getUptime() : 0;
+
+  return (
+    <Text className="text-lg font-semibold text-gray-100">
+      {isRunning ? formatUptime(uptime) : '-'}
+    </Text>
+  );
 }
 
 function formatTime(date: Date): string {
