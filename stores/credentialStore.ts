@@ -6,7 +6,7 @@ import type { CredentialStoreState, ShareDetails } from '@/types';
 
 export const useCredentialStore = create<CredentialStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // State
       hasCredentials: false,
       shareDetails: null,
@@ -24,7 +24,11 @@ export const useCredentialStore = create<CredentialStoreState>()(
           });
         } catch (error) {
           console.error('Failed to hydrate credentials:', error);
-          set({ isHydrated: true });
+          // Safe fallback: assume no credentials and route to onboarding
+          set({
+            hasCredentials: false,
+            isHydrated: true,
+          });
         }
       },
 
@@ -45,13 +49,20 @@ export const useCredentialStore = create<CredentialStoreState>()(
       },
 
       clearCredentials: async () => {
-        await secureStorage.clearCredentials();
-        set({
-          hasCredentials: false,
-          shareDetails: null,
-          onboardingComplete: false,
-          echoSent: false,
-        });
+        try {
+          await secureStorage.clearCredentials();
+          // Only reset state if secure storage clear succeeded
+          set({
+            hasCredentials: false,
+            shareDetails: null,
+            onboardingComplete: false,
+            echoSent: false,
+          });
+        } catch (error) {
+          console.error('Failed to clear credentials from secure storage:', error);
+          // Do NOT reset state if clear failed - maintain consistency with secure storage
+          throw error;
+        }
       },
     }),
     {
