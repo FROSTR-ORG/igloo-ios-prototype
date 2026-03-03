@@ -1,5 +1,10 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$REPO_DIR"
 
 echo "==> Installing JS dependencies (bun)"
 if ! command -v bun >/dev/null 2>&1; then
@@ -14,3 +19,8 @@ bun install --frozen-lockfile
 echo "==> Installing CocoaPods"
 cd ios
 pod install
+
+if [[ ! -f "Pods/Target Support Files/Pods-Igloo/Pods-Igloo.release.xcconfig" ]]; then
+  echo "ERROR: Expected CocoaPods xcconfig not found after pod install."
+  exit 1
+fi
