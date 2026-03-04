@@ -23,20 +23,27 @@ ruby --version || true
 pod --version || true
 
 echo "==> Installing JS dependencies"
+JS_OK=0
+
 if command -v bun >/dev/null 2>&1; then
-  if ! run bun install --frozen-lockfile; then
+  if run bun install --frozen-lockfile; then
+    JS_OK=1
+  else
     echo "WARN: bun frozen install failed, retrying bun install"
-    run bun install || true
+    if run bun install; then
+      JS_OK=1
+    fi
   fi
 fi
 
-if [ ! -d "node_modules" ]; then
+if [ "$JS_OK" -ne 1 ]; then
   echo "==> Falling back to npm install (legacy peer deps)"
   if command -v npm >/dev/null 2>&1; then
+    rm -rf node_modules
     if [ -f package-lock.json ]; then
-      run npm ci --legacy-peer-deps --no-audit --no-fund
+      run npm ci --legacy-peer-deps --no-audit --no-fund && JS_OK=1
     else
-      run npm install --legacy-peer-deps --no-audit --no-fund
+      run npm install --legacy-peer-deps --no-audit --no-fund && JS_OK=1
     fi
   else
     echo "ERROR: Neither bun nor npm produced node_modules."
@@ -44,15 +51,29 @@ if [ ! -d "node_modules" ]; then
   fi
 fi
 
+if [ "$JS_OK" -ne 1 ]; then
+  echo "ERROR: JavaScript dependency install did not complete successfully."
+  exit 1
+fi
+
 if [ ! -d "node_modules" ]; then
-  echo "ERROR: node_modules is missing after dependency install."
+  echo "ERROR: node_modules is missing after successful dependency install."
   exit 1
 fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
 if ! command -v pod >/dev/null 2>&1; then
-  echo "ERROR: CocoaPods command 'pod' is not available in this Xcode Cloud environment."
+  echo "WARN: CocoaPods command not found in PATH; trying gem user install"
+  if command -v gem >/dev/null 2>&1; then
+    GEM_BIN_DIR="$HOME/.gem/ruby/$(ruby -e 'print RbConfig::CONFIG[\"ruby_version\"]')/bin"
+    run gem install cocoapods -N --user-install
+    export PATH="$GEM_BIN_DIR:$PATH"
+  fi
+fi
+
+if ! command -v pod >/dev/null 2>&1; then
+  echo "ERROR: CocoaPods command 'pod' is still not available after fallback."
   exit 1
 fi
 
