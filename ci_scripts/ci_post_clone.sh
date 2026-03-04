@@ -8,6 +8,12 @@ cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/.tmp"
 export TMPDIR="$REPO_DIR/.tmp"
 export CI=1
+export COCOAPODS_DISABLE_STATS=1
+
+run() {
+  echo "==> $*"
+  "$@"
+}
 
 echo "==> Tool versions"
 node -v || true
@@ -18,19 +24,19 @@ pod --version || true
 
 echo "==> Installing JS dependencies"
 if command -v bun >/dev/null 2>&1; then
-  if ! bun install --frozen-lockfile; then
+  if ! run bun install --frozen-lockfile; then
     echo "WARN: bun frozen install failed, retrying bun install"
-    bun install || true
+    run bun install || true
   fi
 fi
 
 if [ ! -d "node_modules" ]; then
-  echo "==> Falling back to npm install"
+  echo "==> Falling back to npm install (legacy peer deps)"
   if command -v npm >/dev/null 2>&1; then
     if [ -f package-lock.json ]; then
-      npm ci --no-audit --no-fund
+      run npm ci --legacy-peer-deps --no-audit --no-fund
     else
-      npm install --no-audit --no-fund
+      run npm install --legacy-peer-deps --no-audit --no-fund
     fi
   else
     echo "ERROR: Neither bun nor npm produced node_modules."
@@ -46,13 +52,17 @@ fi
 echo "==> Installing CocoaPods dependencies"
 cd ios
 if ! command -v pod >/dev/null 2>&1; then
-  echo "==> CocoaPods missing; attempting gem install"
-  gem install cocoapods -N
+  echo "ERROR: CocoaPods command 'pod' is not available in this Xcode Cloud environment."
+  exit 1
 fi
 
-pod install --repo-update
+if ! run pod install; then
+  echo "WARN: pod install failed, retrying with --repo-update"
+  run pod install --repo-update
+fi
 
 if [ ! -f "Pods/Target Support Files/Pods-Igloo/Pods-Igloo.release.xcconfig" ]; then
   echo "ERROR: Expected Pods-Igloo.release.xcconfig was not generated."
+  ls -la "Pods/Target Support Files" || true
   exit 1
 fi
