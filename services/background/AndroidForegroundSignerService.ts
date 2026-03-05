@@ -6,6 +6,10 @@ class AndroidForegroundSignerService {
   isRunning(): boolean {
     return false;
   }
+
+  isAvailable(): boolean {
+    return false;
+  }
 }
 
 export const androidForegroundSignerService = new AndroidForegroundSignerService();
