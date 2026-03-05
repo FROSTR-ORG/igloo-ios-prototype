@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Alert, Animated, Pressable } from 'react-native';
+import { View, Text, ScrollView, Alert, Animated, Platform, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Key,
@@ -58,11 +58,11 @@ export default function SignerTab() {
   const volume = useAudioStore((s) => s.volume);
   const setVolume = useAudioStore((s) => s.setVolume);
   const previousVolume = useRef(volume > 0 ? volume : 0.3);
+  const isIOS = Platform.OS === 'ios';
 
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [decodedGroup, setDecodedGroup] = useState<object | null>(null);
   const [decodedShare, setDecodedShare] = useState<object | null>(null);
-
 
   // Load credentials on mount
   useEffect(() => {
@@ -86,7 +86,6 @@ export default function SignerTab() {
       mounted = false;
     };
   }, [decodeGroupCredential, decodeShareCredential]);
-
 
   const handleToggle = useCallback(async () => {
     try {
@@ -113,6 +112,8 @@ export default function SignerTab() {
   }, [shareDetails, copyPubkey]);
 
   const handleMuteToggle = useCallback(async () => {
+    if (!isIOS) return;
+
     await Haptics.selectionAsync();
     const previousVol = volume;
     const newVolume = volume === 0
@@ -136,7 +137,7 @@ export default function SignerTab() {
         error instanceof Error ? error.message : 'Failed to change volume'
       );
     }
-  }, [volume, setVolume]);
+  }, [isIOS, volume, setVolume]);
 
   return (
     <GradientBackground>
@@ -152,8 +153,12 @@ export default function SignerTab() {
                 </Text>
                 {isRunning && (
                   <HelpTooltip
-                    title="Background Soundscape"
-                    content="Tap the soundscape badge below to mute/unmute. The soundscape keeps your signer responsive in the background. Adjust volume in Settings."
+                    title={isIOS ? 'Background Soundscape' : 'Android Background Mode'}
+                    content={
+                      isIOS
+                        ? 'Tap the soundscape badge below to mute or unmute. The soundscape keeps your signer responsive in the background. Adjust volume in Settings.'
+                        : 'On Android, Igloo keeps signer mode active with a foreground service and persistent notification while the signer is running.'
+                    }
                     size={18}
                   />
                 )}
@@ -164,7 +169,7 @@ export default function SignerTab() {
                 </Text>
               )}
               {/* Audio Status Warning */}
-              {isRunning && audioStatus !== 'playing' && audioStatus !== 'idle' && (
+              {isIOS && isRunning && audioStatus !== 'playing' && audioStatus !== 'idle' && (
                 <View className="flex-row items-center gap-1 mt-2 px-3 py-1.5 bg-yellow-500/20 rounded-full">
                   <VolumeX size={14} color="#eab308" />
                   <Text className="text-xs text-yellow-400">
@@ -175,7 +180,7 @@ export default function SignerTab() {
                 </View>
               )}
               {/* Soundscape Mute Toggle */}
-              {isRunning && audioStatus === 'playing' && (
+              {isIOS && isRunning && audioStatus === 'playing' && (
                 <Pressable
                   onPress={handleMuteToggle}
                   className={`flex-row items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full active:opacity-70 ${
@@ -581,18 +586,16 @@ function truncatePubkey(pubkey: string): string {
  */
 function UptimeDisplay({
   getUptime,
-  isRunning
+  isRunning,
 }: {
   getUptime: () => number;
-  isRunning: boolean
+  isRunning: boolean;
 }) {
-  // Use a tick counter to force re-renders - linter compliant pattern
   const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!isRunning) return;
 
-    // Trigger re-render every second by updating tick counter
     const interval = setInterval(() => {
       setTick((t) => t + 1);
     }, 1000);
@@ -600,7 +603,6 @@ function UptimeDisplay({
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // Derive uptime on each render from parent's getUptime
   const uptime = isRunning ? getUptime() : 0;
 
   return (

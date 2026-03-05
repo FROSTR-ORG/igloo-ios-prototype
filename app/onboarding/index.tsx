@@ -1,5 +1,4 @@
-import { View, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button } from '@/components/ui';
 import { router } from 'expo-router';
 import {
   Snowflake,
@@ -9,7 +8,8 @@ import {
   ArrowRight,
   type LucideIcon,
 } from 'lucide-react-native';
-import { Button } from '@/components/ui';
+import { Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function OnboardingWelcome() {
   return (

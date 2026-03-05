@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { Volume2, VolumeX } from 'lucide-react-native';
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import {
   AccessibilityActionEvent,
   GestureResponderEvent,
@@ -45,7 +45,7 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
       previousVolume.current = value;
       onValueChange(0);
     }
-  }, [disabled, value, onValueChange]);
+  }, [disabled, isMuted, value, onValueChange]);
 
   const calculateValueFromTouch = useCallback((pageX: number): number => {
     const { x, width } = trackLayout.current;

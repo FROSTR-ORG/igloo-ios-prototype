@@ -1,9 +1,9 @@
-import { View, Text, TextInput, type TextInputProps } from 'react-native';
-import { useState } from 'react';
 import Colors from '@/constants/Colors';
+import { useState, type ReactNode } from 'react';
+import { Text, TextInput, View, type TextInputProps } from 'react-native';
 
 export interface InputWithValidationProps extends TextInputProps {
-  label: string | React.ReactNode;
+  label: string | ReactNode;
   value: string;
   onChangeText: (value: string) => void;
   isValid?: boolean;
