@@ -5,7 +5,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Timer functions available in React Native - declare for TypeScript
@@ -113,6 +113,14 @@ export default function OnboardingScan() {
     };
   }, []);
 
+  const handleRequestPermission = useCallback(() => {
+    requestPermission();
+  }, [requestPermission]);
+
+  const handleOpenSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
+
   const handleBarCodeScanned = useCallback(async ({ data }: { data: string }) => {
     if (isProcessing || scanStep === 'transition') return;
 
@@ -183,6 +191,8 @@ export default function OnboardingScan() {
   }
 
   if (!permission.granted) {
+    const canRequestPermission = permission.canAskAgain;
+
     return (
       <SafeAreaView className="flex-1 bg-gray-950">
         <View className="flex-1 px-6 items-center justify-center">
@@ -191,12 +201,20 @@ export default function OnboardingScan() {
             Camera Access Required
           </Text>
           <Text className="text-base text-gray-400 text-center mb-6">
-            We need camera access to scan QR codes containing your credentials.
+            {canRequestPermission
+              ? 'We need camera access to scan QR codes containing your credentials.'
+              : 'Camera access is turned off. Enable it in Settings to scan QR codes containing your credentials.'}
           </Text>
-          <Button title="Grant Permission" onPress={requestPermission} />
-          <Pressable onPress={() => router.back()} className="mt-4 py-2">
-            <Text className="text-blue-400">Go Back</Text>
-          </Pressable>
+          {canRequestPermission ? (
+            <Button title="Continue" onPress={handleRequestPermission} />
+          ) : (
+            <>
+              <Button title="Open Settings" onPress={handleOpenSettings} />
+              <Pressable onPress={() => router.back()} className="mt-4 py-2">
+                <Text className="text-blue-400">Go Back</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </SafeAreaView>
     );
