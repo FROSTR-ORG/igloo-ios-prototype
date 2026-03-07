@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { Volume2, VolumeX } from 'lucide-react-native';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   AccessibilityActionEvent,
   GestureResponderEvent,
@@ -19,7 +19,8 @@ interface VolumeControlProps {
 const clamp = (val: number) => Math.max(0, Math.min(1, val));
 export const MIN_MUTED_VOLUME = 0.005;
 export const normalizeVolume = (val: number) => {
-  const clampedValue = clamp(val);
+  const safeValue = Number.isFinite(val) ? val : 0;
+  const clampedValue = clamp(safeValue);
   return clampedValue < MIN_MUTED_VOLUME ? 0 : clampedValue;
 };
 export const isMutedVolume = (val: number | undefined | null) =>
@@ -29,6 +30,12 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
   const normalizedValue = normalizeVolume(value);
   const isMuted = isMutedVolume(normalizedValue);
   const previousVolume = useRef(normalizedValue > 0 ? normalizedValue : 0.3);
+
+  useEffect(() => {
+    if (normalizedValue > 0) {
+      previousVolume.current = normalizedValue;
+    }
+  }, [normalizedValue]);
 
   // Track layout for position calculations (measured via onLayout for immediate availability)
   const trackRef = useRef<View>(null);
