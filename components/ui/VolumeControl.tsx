@@ -17,10 +17,16 @@ interface VolumeControlProps {
 
 // Clamp value between 0 and 1
 const clamp = (val: number) => Math.max(0, Math.min(1, val));
+const MIN_MUTED_VOLUME = 0.005;
+const normalizeVolume = (val: number) => {
+  const clampedValue = clamp(val);
+  return clampedValue < MIN_MUTED_VOLUME ? 0 : clampedValue;
+};
 
 export function VolumeControl({ value, onValueChange, disabled }: VolumeControlProps) {
-  const isMuted = value === 0;
-  const previousVolume = useRef(value > 0 ? value : 0.3);
+  const normalizedValue = normalizeVolume(value);
+  const isMuted = normalizedValue === 0;
+  const previousVolume = useRef(normalizedValue > 0 ? normalizedValue : 0.3);
 
   // Track layout for position calculations (measured via onLayout for immediate availability)
   const trackRef = useRef<View>(null);
@@ -42,17 +48,17 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
       onValueChange(restoreValue);
     } else {
       // Mute - save current volume and set to 0
-      previousVolume.current = value;
+      previousVolume.current = normalizedValue;
       onValueChange(0);
     }
-  }, [disabled, isMuted, value, onValueChange]);
+  }, [disabled, isMuted, normalizedValue, onValueChange]);
 
   const calculateValueFromTouch = useCallback((pageX: number): number => {
     const { x, width } = trackLayout.current;
-    if (width === 0) return value;
+    if (width === 0) return normalizedValue;
     const touchX = pageX - x;
-    return clamp(touchX / width);
-  }, [value]);
+    return normalizeVolume(touchX / width);
+  }, [normalizedValue]);
 
   const handleTouchStart = useCallback((event: GestureResponderEvent) => {
     if (disabled) return;
@@ -64,7 +70,7 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
       if (width > 0) {
         trackLayout.current = { x, width };
         const touchX = pageX - x;
-        const newValue = clamp(touchX / width);
+        const newValue = normalizeVolume(touchX / width);
         onValueChange(newValue);
         if (newValue > 0) {
           previousVolume.current = newValue;
@@ -98,19 +104,19 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
       if (disabled) return;
 
       const step = 0.05; // 5% volume step
-      let newValue = value;
+      let newValue = normalizedValue;
 
       switch (event.nativeEvent.actionName) {
         case 'increment':
-          newValue = clamp(value + step);
+          newValue = normalizeVolume(normalizedValue + step);
           break;
         case 'decrement':
-          newValue = clamp(value - step);
+          newValue = normalizeVolume(normalizedValue - step);
           break;
         case 'set':
           // For set action, we could use a default increment
           // or handle it based on the event's value if available
-          newValue = clamp(value + step);
+          newValue = normalizeVolume(normalizedValue + step);
           break;
         default:
           return;
@@ -122,10 +128,10 @@ export function VolumeControl({ value, onValueChange, disabled }: VolumeControlP
       }
       Haptics.selectionAsync();
     },
-    [disabled, value, onValueChange],
+    [disabled, normalizedValue, onValueChange],
   );
 
-  const percentage = Math.round(clamp(value) * 100);
+  const percentage = Math.round(normalizedValue * 100);
 
   return (
     <View className="py-2">

@@ -37,7 +37,8 @@ import type { StartSignerOptions } from './types';
 // 1. iOS requires audio playback for background execution
 // 2. Android uses different background execution mechanisms (foreground services)
 const ENABLE_BACKGROUND_AUDIO = Platform.OS === 'ios';
-const ENABLE_ANDROID_FOREGROUND_SERVICE = Platform.OS === 'android';
+const ENABLE_ANDROID_FOREGROUND_SERVICE =
+  Platform.OS === 'android' && androidForegroundSignerService.isAvailable();
 
 class StartCancelledError extends Error {
   constructor(stage: string) {
@@ -248,7 +249,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         return;
       }
 
-      if (!this.node && this.isCurrentStartAttempt(startAttemptId)) {
+      if (this.isCurrentStartAttempt(startAttemptId)) {
         await this.stopAndroidForegroundService();
       }
 
@@ -1363,12 +1364,12 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   }
 
   /**
-   * Get the currently loaded credentials (if signer has started).
+   * Get non-sensitive information about whether credentials are loaded in memory.
    */
-  getLoadedCredentials(): { group: string | null; share: string | null } {
+  getLoadedCredentialState(): { hasGroup: boolean; hasShare: boolean } {
     return {
-      group: this.groupCredential,
-      share: this.shareCredential,
+      hasGroup: this.groupCredential !== null,
+      hasShare: this.shareCredential !== null,
     };
   }
 

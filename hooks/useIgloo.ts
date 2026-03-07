@@ -96,7 +96,6 @@ export function useIgloo() {
         iglooService.off('error', handleError);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Expose service methods
@@ -158,8 +157,8 @@ export function useIgloo() {
     return iglooService.decodeShareCredential(share);
   }, []);
 
-  const getLoadedCredentials = useCallback(() => {
-    return iglooService.getLoadedCredentials();
+  const getLoadedCredentialState = useCallback(() => {
+    return iglooService.getLoadedCredentialState();
   }, []);
 
   return {
@@ -177,6 +176,6 @@ export function useIgloo() {
     isRunning,
     decodeGroupCredential,
     decodeShareCredential,
-    getLoadedCredentials,
+    getLoadedCredentialState,
   };
 }
