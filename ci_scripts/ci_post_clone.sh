@@ -45,12 +45,13 @@ ensure_node_and_npm() {
   esac
 
   # React Native 0.81.x requires Node >= 20.19.4; keep Xcode Cloud on a known-good v20 build.
-  NODE_VERSION="${XCODE_CLOUD_NODE_VERSION:-v20.19.4}"
+  NODE_VERSION_RAW="${XCODE_CLOUD_NODE_VERSION:-20.19.4}"
+  NODE_VERSION="v${NODE_VERSION_RAW#v}"
   NODE_BASE_URL="https://nodejs.org/dist/$NODE_VERSION"
   SHASUMS_FILE="$TMPDIR/node-shasums.txt"
   run curl -fsSL "$NODE_BASE_URL/SHASUMS256.txt" -o "$SHASUMS_FILE"
 
-  NODE_TARBALL="$(awk -v version="$NODE_VERSION" -v arch="$NODE_ARCH" '$2 == ("node-" substr(version, 2) "-" arch ".tar.gz") {print $2; exit}' "$SHASUMS_FILE")"
+  NODE_TARBALL="$(awk -v version="$NODE_VERSION" -v arch="$NODE_ARCH" '$2 == ("node-" version "-" arch ".tar.gz") {print $2; exit}' "$SHASUMS_FILE")"
   if [ -z "$NODE_TARBALL" ]; then
     echo "ERROR: Could not resolve Node tarball for version $NODE_VERSION and architecture $NODE_ARCH"
     exit 1
