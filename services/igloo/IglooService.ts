@@ -31,7 +31,7 @@ import {
 } from '@frostr/igloo-core';
 import EventEmitter from 'eventemitter3';
 import { Platform } from 'react-native';
-import type { StartSignerOptions } from './types';
+import type { StartSignerOptions, StopSignerOptions } from './types';
 
 // Background audio soundscape is iOS-only because:
 // 1. iOS requires audio playback for background execution
@@ -73,6 +73,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   private nextStartAttemptId = 1;
   private currentStartAttemptId: number | null = null;
   private cancelledStartAttemptId = 0;
+  // Preserve iOS audio during restart, but roll it back if the replacement start never succeeds.
+  private keepAudioDuringRestart = false;
 
   /**
    * Start the signer node and connect to relays.
@@ -93,6 +95,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       // Don't start if already running - restart with audio preserved
       if (this.node) {
         this.log('warn', 'system', 'Signer already running, restarting (keeping audio)...');
+        this.keepAudioDuringRestart = ENABLE_BACKGROUND_AUDIO;
         await this.stopSigner({
           keepAudio: true,
           keepForegroundService: false,
@@ -221,6 +224,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         }
       }
 
+      this.keepAudioDuringRestart = false;
+
       this.log('info', 'system', 'Signer node started successfully', {
         connectedRelays: state.connectedRelays.length,
         requestedRelays: relays.length,
@@ -253,6 +258,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         await this.stopAndroidForegroundService();
       }
 
+      await this.rollbackPreservedRestartAudio(startAttemptId);
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.emit('status:changed', 'error');
       this.emit('error', error instanceof Error ? error : new Error(errorMessage));
@@ -270,7 +277,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
    * @param options.keepAudio - If true, don't stop background audio (used during restart)
    */
   async stopSigner(
-    options: { keepAudio?: boolean; keepForegroundService?: boolean; cancelPendingStart?: boolean } = {}
+    options: StopSignerOptions = {}
   ): Promise<void> {
     if (options.cancelPendingStart !== false) {
       this.cancelPendingStart('manual-stop');
@@ -409,6 +416,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   ): Promise<void> {
     if (!connectedNode) {
       if (!this.node && this.isCurrentStartAttempt(startAttemptId)) {
+        await this.rollbackPreservedRestartAudio(startAttemptId, true);
         await this.stopAndroidForegroundService();
       }
       return;
@@ -420,6 +428,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         keepForegroundService: false,
         reason: `start-cancelled-${startAttemptId}`,
       });
+      this.keepAudioDuringRestart = false;
       return;
     }
 
@@ -436,8 +445,21 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     }
 
     if (!this.node && this.isCurrentStartAttempt(startAttemptId)) {
+      await this.rollbackPreservedRestartAudio(startAttemptId, true);
       await this.stopAndroidForegroundService();
     }
+  }
+
+  private async rollbackPreservedRestartAudio(
+    startAttemptId: number,
+    requireNoActiveNode = false
+  ): Promise<void> {
+    if (!ENABLE_BACKGROUND_AUDIO || !this.keepAudioDuringRestart) return;
+    if (!this.isCurrentStartAttempt(startAttemptId)) return;
+    if (requireNoActiveNode && this.node) return;
+
+    await this.stopBackgroundAudio();
+    this.keepAudioDuringRestart = false;
   }
 
   /**

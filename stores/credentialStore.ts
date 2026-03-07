@@ -72,10 +72,13 @@ export const useCredentialStore = create<CredentialStoreState>()(
             console.error('Retrying credential clear failed:', retryError);
           }
 
-          const hasCredentials = await secureStorage.hasCredentials().catch((statusError) => {
+          let hasCredentials: boolean;
+          try {
+            hasCredentials = await secureStorage.hasCredentials();
+          } catch (statusError) {
             console.error('Failed to verify credential clear state:', statusError);
-            return false;
-          });
+            throw error;
+          }
 
           if (!hasCredentials) {
             resetClearedState();

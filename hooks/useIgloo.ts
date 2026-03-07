@@ -1,3 +1,4 @@
+import type { StartSignerOptions, StopSignerOptions } from '@/services/igloo/types';
 import { useEffect, useCallback } from 'react';
 import { iglooService } from '@/services/igloo';
 import { useSignerStore, useLogStore, usePeerStore } from '@/stores';
@@ -100,14 +101,14 @@ export function useIgloo() {
 
   // Expose service methods
   const startSigner = useCallback(
-    (group: string, share: string, relays: string[]) => {
-      return iglooService.startSigner(group, share, relays);
+    (group: string, share: string, relays: string[], options?: StartSignerOptions) => {
+      return iglooService.startSigner(group, share, relays, options);
     },
     []
   );
 
-  const stopSigner = useCallback(() => {
-    return iglooService.stopSigner();
+  const stopSigner = useCallback((options?: StopSignerOptions) => {
+    return iglooService.stopSigner(options);
   }, []);
 
   const validateCredentials = useCallback((share: string, group: string) => {

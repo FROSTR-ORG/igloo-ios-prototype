@@ -27,6 +27,7 @@ import {
   Collapsible,
   CredentialDisplay,
   GradientBackground,
+  isMutedVolume,
 } from '@/components/ui';
 import { useSigner, useIgloo, useCopyFeedback } from '@/hooks';
 import { useAudioStore } from '@/stores';
@@ -57,7 +58,7 @@ export default function SignerTab() {
   // Audio state for quick mute
   const volume = useAudioStore((s) => s.volume);
   const setVolume = useAudioStore((s) => s.setVolume);
-  const previousVolume = useRef(volume > 0 ? volume : 0.3);
+  const previousVolume = useRef(!isMutedVolume(volume) ? volume : 0.3);
   const isIOS = Platform.OS === 'ios';
 
   const [credentials, setCredentials] = useState<Credentials | null>(null);
@@ -116,7 +117,8 @@ export default function SignerTab() {
 
     await Haptics.selectionAsync();
     const previousVol = volume;
-    const newVolume = volume === 0
+    const volumeIsMuted = isMutedVolume(volume);
+    const newVolume = volumeIsMuted
       ? (previousVolume.current > 0 ? previousVolume.current : 0.3)
       : 0;
 
@@ -125,7 +127,7 @@ export default function SignerTab() {
       await audioService.setVolume(newVolume);
 
       // Only update store and refs after native call succeeds
-      if (volume !== 0) {
+      if (!volumeIsMuted) {
         previousVolume.current = volume;
       }
       setVolume(newVolume);
@@ -184,13 +186,13 @@ export default function SignerTab() {
                 <Pressable
                   onPress={handleMuteToggle}
                   accessibilityRole="button"
-                  accessibilityLabel={volume === 0 ? 'Muted' : 'Soundscape on'}
-                  accessibilityState={{ selected: volume !== 0 }}
+                  accessibilityLabel={isMutedVolume(volume) ? 'Muted' : 'Soundscape on'}
+                  accessibilityState={{ selected: !isMutedVolume(volume) }}
                   className={`flex-row items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full active:opacity-70 ${
-                    volume === 0 ? 'bg-red-500/20' : 'bg-blue-500/20'
+                    isMutedVolume(volume) ? 'bg-red-500/20' : 'bg-blue-500/20'
                   }`}
                 >
-                  {volume === 0 ? (
+                  {isMutedVolume(volume) ? (
                     <>
                       <VolumeX size={14} color="#ef4444" />
                       <Text className="text-xs text-red-400">Muted</Text>

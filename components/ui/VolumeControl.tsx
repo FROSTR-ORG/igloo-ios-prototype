@@ -17,15 +17,17 @@ interface VolumeControlProps {
 
 // Clamp value between 0 and 1
 const clamp = (val: number) => Math.max(0, Math.min(1, val));
-const MIN_MUTED_VOLUME = 0.005;
-const normalizeVolume = (val: number) => {
+export const MIN_MUTED_VOLUME = 0.005;
+export const normalizeVolume = (val: number) => {
   const clampedValue = clamp(val);
   return clampedValue < MIN_MUTED_VOLUME ? 0 : clampedValue;
 };
+export const isMutedVolume = (val: number | undefined | null) =>
+  val !== undefined && val !== null && normalizeVolume(val) === 0;
 
 export function VolumeControl({ value, onValueChange, disabled }: VolumeControlProps) {
   const normalizedValue = normalizeVolume(value);
-  const isMuted = normalizedValue === 0;
+  const isMuted = isMutedVolume(normalizedValue);
   const previousVolume = useRef(normalizedValue > 0 ? normalizedValue : 0.3);
 
   // Track layout for position calculations (measured via onLayout for immediate availability)
