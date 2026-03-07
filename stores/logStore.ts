@@ -1,12 +1,13 @@
-import { create } from 'zustand';
+import type { LogCategory, LogEntry, LogFilter, LogLevel, LogStoreState } from '@/types';
 import { nanoid } from 'nanoid';
-import type { LogStoreState, LogEntry, LogLevel, LogCategory, LogFilter } from '@/types';
+import { create } from 'zustand';
 
 const DEFAULT_MAX_ENTRIES = 500;
 
 const DEFAULT_FILTER: LogFilter = {
   levels: ['debug', 'info', 'warn', 'error'],
-  categories: ['signing', 'relay', 'peer', 'echo'],
+  // Include 'system' logs by default; users can filter them out in the UI when needed.
+  categories: ['signing', 'relay', 'peer', 'echo', 'system'],
 };
 
 function stableStringify(value: unknown): string {
@@ -46,7 +47,7 @@ function getEntryKey(entry: Pick<LogEntry, 'level' | 'category' | 'message' | 'd
   return `${entry.level}|${entry.category}|${entry.message}|${dataKey}`;
 }
 
-export const useLogStore = create<LogStoreState>()((set, get) => ({
+export const useLogStore = create<LogStoreState>()((set) => ({
   // State (in-memory only - not persisted)
   entries: [],
   maxEntries: DEFAULT_MAX_ENTRIES,

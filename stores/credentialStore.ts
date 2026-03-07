@@ -49,18 +49,47 @@ export const useCredentialStore = create<CredentialStoreState>()(
       },
 
       clearCredentials: async () => {
-        try {
-          await secureStorage.clearCredentials();
-          // Only reset state if secure storage clear succeeded
+        const resetClearedState = () =>
           set({
             hasCredentials: false,
             shareDetails: null,
             onboardingComplete: false,
             echoSent: false,
           });
+
+        try {
+          await secureStorage.clearCredentials();
+          // Only reset state if secure storage clear succeeded
+          resetClearedState();
         } catch (error) {
           console.error('Failed to clear credentials from secure storage:', error);
-          // Do NOT reset state if clear failed - maintain consistency with secure storage
+          let retryCleared = false;
+
+          try {
+            await secureStorage.clearCredentials();
+            retryCleared = true;
+          } catch (retryError) {
+            console.error('Retrying credential clear failed:', retryError);
+          }
+
+          let hasCredentials: boolean;
+          try {
+            hasCredentials = await secureStorage.hasCredentials();
+          } catch (statusError) {
+            console.error('Failed to verify credential clear state:', statusError);
+            throw error;
+          }
+
+          if (!hasCredentials) {
+            resetClearedState();
+            console.warn(
+              retryCleared
+                ? 'Credential clear recovered after retry.'
+                : 'Credential clear recovered after verification fallback.'
+            );
+            return;
+          }
+
           throw error;
         }
       },

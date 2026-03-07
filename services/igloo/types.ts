@@ -5,3 +5,9 @@ export interface StartSignerOptions {
   connectionTimeout?: number;
   autoReconnect?: boolean;
 }
+
+export interface StopSignerOptions {
+  keepAudio?: boolean;
+  keepForegroundService?: boolean;
+  cancelPendingStart?: boolean;
+}

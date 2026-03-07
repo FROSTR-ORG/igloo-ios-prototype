@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>igloo</string>
-          <string>com.anonymous.igloo-ios</string>
+          <string>com.anonymous.igloo</string>
         </array>
       </dict>
     </array>

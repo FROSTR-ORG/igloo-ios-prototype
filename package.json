@@ -1,5 +1,5 @@
 {
-  "name": "igloo-ios",
+  "name": "igloo",
   "main": "./index.js",
   "version": "0.1.0",
   "scripts": {

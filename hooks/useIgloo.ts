@@ -1,3 +1,4 @@
+import type { StartSignerOptions, StopSignerOptions } from '@/services/igloo/types';
 import { useEffect, useCallback } from 'react';
 import { iglooService } from '@/services/igloo';
 import { useSignerStore, useLogStore, usePeerStore } from '@/stores';
@@ -96,19 +97,18 @@ export function useIgloo() {
         iglooService.off('error', handleError);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Expose service methods
   const startSigner = useCallback(
-    (group: string, share: string, relays: string[]) => {
-      return iglooService.startSigner(group, share, relays);
+    (group: string, share: string, relays: string[], options?: StartSignerOptions) => {
+      return iglooService.startSigner(group, share, relays, options);
     },
     []
   );
 
-  const stopSigner = useCallback(() => {
-    return iglooService.stopSigner();
+  const stopSigner = useCallback((options?: StopSignerOptions) => {
+    return iglooService.stopSigner(options);
   }, []);
 
   const validateCredentials = useCallback((share: string, group: string) => {
@@ -158,8 +158,8 @@ export function useIgloo() {
     return iglooService.decodeShareCredential(share);
   }, []);
 
-  const getLoadedCredentials = useCallback(() => {
-    return iglooService.getLoadedCredentials();
+  const getLoadedCredentialState = useCallback(() => {
+    return iglooService.getLoadedCredentialState();
   }, []);
 
   return {
@@ -177,6 +177,6 @@ export function useIgloo() {
     isRunning,
     decodeGroupCredential,
     decodeShareCredential,
-    getLoadedCredentials,
+    getLoadedCredentialState,
   };
 }

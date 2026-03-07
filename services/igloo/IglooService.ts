@@ -1,5 +1,20 @@
-import { Platform } from 'react-native';
-import EventEmitter from 'eventemitter3';
+import { audioService } from '@/services/audio';
+import { androidForegroundSignerService } from '@/services/background';
+import type {
+  SigningRequest,
+  SigningResult,
+  ValidationResult,
+  ShareDetails,
+  PeerStatus,
+  PeerPolicy,
+  PingResult,
+  LogLevel,
+  LogCategory,
+  LogEntry,
+  IglooServiceEvents,
+} from '@/types';
+import type { BifrostNode } from '@frostr/bifrost';
+import type { NodeEventConfig, PingResult as IglooPingResult } from '@frostr/igloo-core';
 import {
   createConnectedNode,
   cleanupBifrostNode,
@@ -14,28 +29,16 @@ import {
   decodeShare,
   normalizePubkey,
 } from '@frostr/igloo-core';
-import type { BifrostNode } from '@frostr/bifrost';
-import type { NodeEventConfig, PingResult as IglooPingResult } from '@frostr/igloo-core';
-import type {
-  SigningRequest,
-  SigningResult,
-  ValidationResult,
-  ShareDetails,
-  PeerStatus,
-  PeerPolicy,
-  PingResult,
-  LogLevel,
-  LogCategory,
-  LogEntry,
-  IglooServiceEvents,
-} from '@/types';
-import type { StartSignerOptions } from './types';
-import { audioService } from '@/services/audio';
+import EventEmitter from 'eventemitter3';
+import { Platform } from 'react-native';
+import type { StartSignerOptions, StopSignerOptions } from './types';
 
 // Background audio soundscape is iOS-only because:
 // 1. iOS requires audio playback for background execution
 // 2. Android uses different background execution mechanisms (foreground services)
 const ENABLE_BACKGROUND_AUDIO = Platform.OS === 'ios';
+const ENABLE_ANDROID_FOREGROUND_SERVICE =
+  Platform.OS === 'android' && androidForegroundSignerService.isAvailable();
 
 class StartCancelledError extends Error {
   constructor(stage: string) {
@@ -70,6 +73,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   private nextStartAttemptId = 1;
   private currentStartAttemptId: number | null = null;
   private cancelledStartAttemptId = 0;
+  // Preserve iOS audio during restart, but roll it back if the replacement start never succeeds.
+  private keepAudioDuringRestart = false;
 
   /**
    * Start the signer node and connect to relays.
@@ -90,8 +95,10 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
       // Don't start if already running - restart with audio preserved
       if (this.node) {
         this.log('warn', 'system', 'Signer already running, restarting (keeping audio)...');
+        this.keepAudioDuringRestart = ENABLE_BACKGROUND_AUDIO;
         await this.stopSigner({
           keepAudio: true,
+          keepForegroundService: false,
           cancelPendingStart: false,
         });
         this.throwIfStartCancelled(startAttemptId, 'after-restart-stop');
@@ -99,6 +106,12 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
 
       this.emit('status:changed', 'connecting');
       this.log('info', 'system', 'Starting signer node...', { relays });
+
+      this.throwIfStartCancelled(startAttemptId, 'before-foreground-service-start');
+      if (ENABLE_ANDROID_FOREGROUND_SERVICE) {
+        await this.startAndroidForegroundService();
+        this.throwIfStartCancelled(startAttemptId, 'after-foreground-service-start');
+      }
 
       const eventConfig: NodeEventConfig = {
         enableLogging: true,
@@ -211,6 +224,8 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         }
       }
 
+      this.keepAudioDuringRestart = false;
+
       this.log('info', 'system', 'Signer node started successfully', {
         connectedRelays: state.connectedRelays.length,
         requestedRelays: relays.length,
@@ -239,6 +254,12 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         return;
       }
 
+      if (this.isCurrentStartAttempt(startAttemptId)) {
+        await this.stopAndroidForegroundService();
+      }
+
+      await this.rollbackPreservedRestartAudio(startAttemptId);
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.emit('status:changed', 'error');
       this.emit('error', error instanceof Error ? error : new Error(errorMessage));
@@ -255,21 +276,42 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
    * Stop the signer node and clean up resources.
    * @param options.keepAudio - If true, don't stop background audio (used during restart)
    */
-  async stopSigner(options: { keepAudio?: boolean; cancelPendingStart?: boolean } = {}): Promise<void> {
+  async stopSigner(
+    options: StopSignerOptions = {}
+  ): Promise<void> {
     if (options.cancelPendingStart !== false) {
       this.cancelPendingStart('manual-stop');
     }
 
     this.log('info', 'system', 'Stopping signer node...', {
       keepAudio: options.keepAudio,
+      keepForegroundService: options.keepForegroundService,
       cancelPendingStart: options.cancelPendingStart ?? true,
     });
     const didTeardown = await this.teardownSigner({
       keepAudio: options.keepAudio,
+      keepForegroundService: options.keepForegroundService,
       reason: 'manual-stop',
     });
     if (didTeardown) {
       this.log('info', 'system', 'Signer node stopped');
+    }
+  }
+
+  /**
+   * Start Android foreground service keepalive.
+   */
+  private async startAndroidForegroundService(): Promise<void> {
+    if (!ENABLE_ANDROID_FOREGROUND_SERVICE) return;
+
+    try {
+      await androidForegroundSignerService.start();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.log('error', 'system', 'Failed to start Android foreground service', {
+        error: errorMessage,
+      });
+      throw error instanceof Error ? error : new Error(errorMessage);
     }
   }
 
@@ -289,6 +331,21 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     } catch (audioError) {
       this.log('warn', 'system', 'Failed to stop background audio', {
         error: audioError instanceof Error ? audioError.message : 'Unknown',
+      });
+    }
+  }
+
+  /**
+   * Stop Android foreground service keepalive.
+   */
+  private async stopAndroidForegroundService(): Promise<void> {
+    if (!ENABLE_ANDROID_FOREGROUND_SERVICE) return;
+
+    try {
+      await androidForegroundSignerService.stop();
+    } catch (error) {
+      this.log('warn', 'system', 'Failed to stop Android foreground service', {
+        error: error instanceof Error ? error.message : 'Unknown',
       });
     }
   }
@@ -335,6 +392,10 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     return this.cancelledStartAttemptId >= startAttemptId;
   }
 
+  private isCurrentStartAttempt(startAttemptId: number): boolean {
+    return this.currentStartAttemptId === startAttemptId;
+  }
+
   private throwIfStartCancelled(startAttemptId: number, stage: string): void {
     if (this.isStartCancelled(startAttemptId)) {
       throw new StartCancelledError(stage);
@@ -348,13 +409,21 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     startAttemptId: number,
     connectedNode: BifrostNode | null
   ): Promise<void> {
-    if (!connectedNode) return;
+    if (!connectedNode) {
+      if (!this.node && this.isCurrentStartAttempt(startAttemptId)) {
+        await this.rollbackPreservedRestartAudio(startAttemptId, true);
+        await this.stopAndroidForegroundService();
+      }
+      return;
+    }
 
     if (this.node === connectedNode) {
       await this.teardownSigner({
         keepAudio: false,
+        keepForegroundService: false,
         reason: `start-cancelled-${startAttemptId}`,
       });
+      this.keepAudioDuringRestart = false;
       return;
     }
 
@@ -369,6 +438,23 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         startAttemptId,
       });
     }
+
+    if (!this.node && this.isCurrentStartAttempt(startAttemptId)) {
+      await this.rollbackPreservedRestartAudio(startAttemptId, true);
+      await this.stopAndroidForegroundService();
+    }
+  }
+
+  private async rollbackPreservedRestartAudio(
+    startAttemptId: number,
+    requireNoActiveNode = false
+  ): Promise<void> {
+    if (!ENABLE_BACKGROUND_AUDIO || !this.keepAudioDuringRestart) return;
+    if (!this.isCurrentStartAttempt(startAttemptId)) return;
+    if (requireNoActiveNode && this.node) return;
+
+    await this.stopBackgroundAudio();
+    this.keepAudioDuringRestart = false;
   }
 
   /**
@@ -386,6 +472,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
    */
   private async teardownSigner(options: {
     keepAudio?: boolean;
+    keepForegroundService?: boolean;
     reason: string;
   }): Promise<boolean> {
     if (this.teardownPromise) {
@@ -425,6 +512,9 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
         if (!options.keepAudio) {
           await this.stopBackgroundAudio();
         }
+        if (!options.keepForegroundService) {
+          await this.stopAndroidForegroundService();
+        }
       } finally {
         this.teardownPromise = null;
         resolveTeardown?.();
@@ -442,6 +532,7 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
     this.cancelPendingStart('node-closed');
     await this.teardownSigner({
       keepAudio: false,
+      keepForegroundService: false,
       reason: 'node-closed',
     });
   }
@@ -1290,12 +1381,12 @@ class IglooService extends EventEmitter<IglooServiceEvents> {
   }
 
   /**
-   * Get the currently loaded credentials (if signer has started).
+   * Get non-sensitive information about whether credentials are loaded in memory.
    */
-  getLoadedCredentials(): { group: string | null; share: string | null } {
+  getLoadedCredentialState(): { hasGroup: boolean; hasShare: boolean } {
     return {
-      group: this.groupCredential,
-      share: this.shareCredential,
+      hasGroup: this.groupCredential !== null,
+      hasShare: this.shareCredential !== null,
     };
   }
 
