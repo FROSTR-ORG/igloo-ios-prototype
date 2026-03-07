@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
-    "postinstall": "node scripts/patch-noble-hashes.js"
+    "postinstall": "node scripts/patch-noble-hashes.js || true"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
